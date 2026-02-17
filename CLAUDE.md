@@ -73,3 +73,7 @@ make -j$(nproc)
 - When adding new bridge interfaces, follow the `RegisterInterfaces()` pattern in existing bridge-*.cpp files
 - When adding new canned responses to MockDBusWrapper, add them in `SetupCannedResponses()`
 - Test executable compiles bridge sources directly (not via shared lib) due to `-fvisibility=hidden`
+
+## Documentation
+- session 시작 시 PLAN.md 읽어서 흐름 파악
+- session 종료 시 다음 session에 넘길 내용 Handover.md에 정리, 기존 Handover.md는 지운다
