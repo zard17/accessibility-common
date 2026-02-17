@@ -816,6 +816,11 @@ public:
 
   bool InitializeAccessibilityStatusClient()
   {
+    if(!DBusWrapper::Installed())
+    {
+      return false;
+    }
+
     mAccessibilityStatusClient = DBus::DBusClient{A11yDbusName, A11yDbusPath, A11yDbusStatusInterface, DBus::ConnectionType::SESSION};
 
     if(!mAccessibilityStatusClient)

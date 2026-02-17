@@ -394,6 +394,12 @@ BridgeBase::ForceUpResult BridgeBase::ForceUp()
     return ForceUpResult::ALREADY_UP;
   }
 
+  if(!DBusWrapper::Installed())
+  {
+    ACCESSIBILITY_LOG_ERROR("DBusWrapper not installed, cannot start bridge");
+    return ForceUpResult::FAILED;
+  }
+
   auto proxy = DBus::DBusClient{dbusLocators::atspi::BUS, dbusLocators::atspi::OBJ_PATH, dbusLocators::atspi::BUS_INTERFACE, DBus::ConnectionType::SESSION};
   auto addr  = proxy.method<std::string()>(dbusLocators::atspi::GET_ADDRESS).call();
 
@@ -440,7 +446,10 @@ void BridgeBase::ForceDown()
   Bridge::ForceDown();
   gTickTimer.Stop();
   mCoalescableMessages.clear();
-  DBusWrapper::Installed()->Strings.clear();
+  if(auto* wrapper = DBusWrapper::Installed())
+  {
+    wrapper->Strings.clear();
+  }
   mRegistry   = {};
   mIpcServer.reset();
 }
