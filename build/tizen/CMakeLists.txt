@@ -186,6 +186,7 @@ IF( BUILD_INSPECTOR )
     ${INSPECTOR_BRIDGE_SOURCES}
     ${accessibility_common_root}/test/mock/mock-dbus-wrapper.cpp
     ${accessibility_common_root}/test/test-accessible.cpp
+    ${accessibility_common_root}/tools/inspector/query-engine.cpp
     ${accessibility_common_root}/tools/inspector/inspector.cpp
   )
   TARGET_INCLUDE_DIRECTORIES( accessibility-inspector PRIVATE ${accessibility_common_root} )

@@ -81,17 +81,30 @@ Introduced a protocol-neutral IPC abstraction layer so the bridge logic can work
 - Demo tree: Window with Header/Content/Footer panels, buttons, slider, labels
 - Navigation uses bridge's `GetNeighbor()` which walks HIGHLIGHTABLE elements
 
-### Phase 4d: macOS NSAccessibility Backend (Planned)
+### Phase 4d: Web-Based GUI Accessibility Inspector (Complete)
+
+Browser-based accessibility inspector served via embedded HTTP server.
+
+**Deliverables:**
+- `tools/inspector/query-engine.h/.cpp` - Reusable `InspectorEngine::AccessibilityQueryEngine` extracted from inspector.cpp
+- `tools/inspector/web-inspector.cpp` - HTTP server with REST API (4 endpoints: tree, element, navigate, HTML)
+- `tools/inspector/web-inspector-resources.h` - Embedded HTML/CSS/JS frontend as C++ raw string literals
+- `third-party/cpp-httplib/httplib.h` - Vendored cpp-httplib v0.18.3 (MIT, single-header)
+- CMake `BUILD_WEB_INSPECTOR` option
+- Dark-themed Catppuccin UI with tree panel, detail panel, keyboard shortcuts, Web Speech API TTS
+- Demo tree updated: labels are HIGHLIGHTABLE (not FOCUSABLE), branding changed to Tizen
+
+### Phase 4e: macOS NSAccessibility Backend (Planned)
 
 Create a native macOS accessibility backend using NSAccessibilityElement.
 
 **Goals:**
-- `DaliAccessibleNode` — NSAccessibilityElement subclass wrapping DALi Accessible objects
+- `DaliAccessibleNode` — NSAccessibilityElement subclass wrapping Accessible objects
 - VoiceOver integration via accessibilityChildren, accessibilityHitTest, accessibilityFocusedUIElement
 - NSAccessibilityPostNotification for state/focus/value changes
-- Requires DALi rendering on macOS (NSWindow + OpenGL/Metal view)
+- Requires a rendering surface on macOS (NSWindow + OpenGL/Metal view)
 
-### Phase 4e: TIDL Backend (Planned)
+### Phase 4f: TIDL Backend (Planned)
 
 Implement a TIDL backend using the IPC abstraction layer.
 
