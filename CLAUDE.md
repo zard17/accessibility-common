@@ -49,7 +49,7 @@ make -j$(nproc)
 
 ## Running the Accessibility Inspector
 
-The inspector is an interactive CLI tool that demonstrates accessibility working end-to-end. It creates a demo DALi-like accessible tree, initializes the bridge with MockDBusWrapper, and lets you browse the tree and hear TTS output.
+The inspector is an interactive CLI tool that demonstrates accessibility working end-to-end. It creates a demo Tizen-like accessible tree, initializes the bridge with MockDBusWrapper, and lets you browse the tree and hear TTS output.
 
 ```bash
 cd build/tizen && mkdir -p build && cd build
@@ -81,23 +81,55 @@ make -j$(nproc)
 ```
 [WINDOW] "Main Window"
   [PANEL] "Header"
-    [PUSH_BUTTON] "Menu"        <- focusable
-    [LABEL] "My DALi App"
+    [PUSH_BUTTON] "Menu"        <- focusable + highlightable
+    [LABEL] "My Tizen App"      <- highlightable
   [PANEL] "Content"
-    [PUSH_BUTTON] "Play"        <- focusable
-    [SLIDER] "Volume"           <- focusable
-    [LABEL] "Now Playing: Bohemian Rhapsody"
+    [PUSH_BUTTON] "Play"        <- focusable + highlightable
+    [SLIDER] "Volume"           <- focusable + highlightable
+    [LABEL] "Now Playing: Bohemian Rhapsody"  <- highlightable
   [PANEL] "Footer"
-    [PUSH_BUTTON] "Previous"    <- focusable
-    [PUSH_BUTTON] "Next"        <- focusable
+    [PUSH_BUTTON] "Previous"    <- focusable + highlightable
+    [PUSH_BUTTON] "Next"        <- focusable + highlightable
 ```
 
-Forward navigation (`n`) walks: Menu -> Play -> Volume -> Previous -> Next.
+Forward navigation (`n`) walks: Menu -> My Tizen App -> Play -> Volume -> Now Playing -> Previous -> Next.
 
 ### TTS
 
 - **macOS**: Uses `AVSpeechSynthesizer` — speaks element role and name aloud
 - **Other platforms**: Prints `[TTS] ROLE. Name` to console
+
+## Running the Web-Based Accessibility Inspector
+
+The web inspector provides a browser-based GUI for exploring the accessibility tree. It uses the same demo tree and bridge infrastructure as the CLI inspector, served via an embedded HTTP server (cpp-httplib).
+
+```bash
+cd build/tizen && mkdir -p build && cd build
+
+# Build with web inspector
+cmake .. -DENABLE_ATSPI=ON -DBUILD_WEB_INSPECTOR=ON -DENABLE_PKG_CONFIGURE=OFF
+make -j$(nproc)
+
+# Run (default port 8080, or specify custom port)
+./accessibility-web-inspector
+./accessibility-web-inspector 9000
+```
+
+Open `http://localhost:8080` in a browser. The interface provides:
+- **Tree panel** (left): visual tree with click-to-select and collapsible nodes
+- **Detail panel** (right): element info (name, role, states, bounds, tree position)
+- **Navigation buttons**: Prev, Next, Child, Parent, Refresh
+- **Keyboard shortcuts**: Tab/Shift+Tab (next/prev), Enter (child), Backspace (parent), S (speak), R (refresh)
+- **TTS**: Uses browser's Web Speech API (no server dependency)
+
+### REST API
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/` | GET | HTML/CSS/JS frontend |
+| `/api/tree` | GET | Full tree JSON + current focusedId |
+| `/api/element/:id` | GET | Element details |
+| `/api/navigate` | POST | Navigate: `{"direction": "next\|prev\|child\|parent"}` |
 
 ## Key Design Patterns
 
@@ -119,6 +151,9 @@ Forward navigation (`n`) walks: Menu -> Play -> Volume -> Previous -> Next.
 - `bridge-impl.cpp` - Bridge lifecycle: `Initialize()`, `ForceUp()`, `ForceDown()`, `SwitchBridge()`.
 - `bridge-base.cpp` - `FindCurrentObject()`, `ApplicationAccessible`, interface registration helpers.
 - `accessibility-common.h` - D-Bus signature specializations for `Address`, `Accessible*`, `States`.
+- `tools/inspector/query-engine.h` - Reusable `InspectorEngine::AccessibilityQueryEngine` class for querying the accessible tree.
+- `tools/inspector/web-inspector.cpp` - Web-based inspector HTTP server with REST API.
+- `third-party/cpp-httplib/httplib.h` - Vendored cpp-httplib v0.18.3 (MIT, single-header HTTP server).
 
 ## Rules
 

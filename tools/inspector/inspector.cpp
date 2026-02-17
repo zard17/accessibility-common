@@ -202,6 +202,7 @@ void ReadElement(const std::string& busName, uint32_t id,
       {Accessibility::State::SELECTED, "SELECTED"},
       {Accessibility::State::EXPANDED, "EXPANDED"},
       {Accessibility::State::PRESSED, "PRESSED"},
+      {Accessibility::State::HIGHLIGHTABLE, "HIGHLIGHTABLE"},
       {Accessibility::State::HIGHLIGHTED, "HIGHLIGHTED"},
       {Accessibility::State::EDITABLE, "EDITABLE"},
       {Accessibility::State::READ_ONLY, "READ_ONLY"},
@@ -358,7 +359,7 @@ DemoTree BuildDemoTree()
 {
   DemoTree t;
 
-  auto makeStates = [](bool focusable = false, bool active = false) {
+  auto makeStates = [](bool focusable = false, bool active = false, bool highlightable = false) {
     Accessibility::States s;
     s[Accessibility::State::ENABLED]   = true;
     s[Accessibility::State::VISIBLE]   = true;
@@ -367,6 +368,10 @@ DemoTree BuildDemoTree()
     if(focusable)
     {
       s[Accessibility::State::FOCUSABLE]     = true;
+      s[Accessibility::State::HIGHLIGHTABLE] = true;
+    }
+    else if(highlightable)
+    {
       s[Accessibility::State::HIGHLIGHTABLE] = true;
     }
     if(active) s[Accessibility::State::ACTIVE] = true;
@@ -387,8 +392,8 @@ DemoTree BuildDemoTree()
   t.menuBtn->SetStates(makeStates(true));
   t.menuBtn->SetExtents({10.0f, 10.0f, 40.0f, 40.0f});
 
-  t.titleLabel = std::make_shared<TestAccessible>("My DALi App", Accessibility::Role::LABEL);
-  t.titleLabel->SetStates(makeStates());
+  t.titleLabel = std::make_shared<TestAccessible>("My Tizen App", Accessibility::Role::LABEL);
+  t.titleLabel->SetStates(makeStates(false, false, true));
   t.titleLabel->SetExtents({60.0f, 10.0f, 360.0f, 40.0f});
 
   // Content panel
@@ -405,7 +410,7 @@ DemoTree BuildDemoTree()
   t.volumeSlider->SetExtents({40.0f, 420.0f, 400.0f, 40.0f});
 
   t.nowPlayingLabel = std::make_shared<TestAccessible>("Now Playing: Bohemian Rhapsody", Accessibility::Role::LABEL);
-  t.nowPlayingLabel->SetStates(makeStates());
+  t.nowPlayingLabel->SetStates(makeStates(false, false, true));
   t.nowPlayingLabel->SetExtents({40.0f, 480.0f, 400.0f, 30.0f});
 
   // Footer panel
@@ -460,7 +465,7 @@ void PrintHelp()
 
 int main(int argc, char** argv)
 {
-  printf("=== DALi Accessibility Inspector ===\n\n");
+  printf("=== Tizen Accessibility Inspector ===\n\n");
 
   // Step 1: Install MockDBusWrapper
   auto mockWrapper = std::make_unique<MockDBusWrapper>();

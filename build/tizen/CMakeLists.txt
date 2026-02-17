@@ -201,12 +201,37 @@ IF( BUILD_INSPECTOR )
   ENDIF()
 ENDIF()
 
+# Web-based Accessibility Inspector
+OPTION( BUILD_WEB_INSPECTOR "Build web-based accessibility inspector tool" OFF )
+IF( BUILD_WEB_INSPECTOR )
+  SET( WEB_INSPECTOR_BRIDGE_SOURCES
+    ${accessibility_common_atspi_bridge_src_files}
+    ${accessibility_common_dbus_stub_src_files}
+    ${accessibility_common_api_src_files}
+    ${accessibility_common_internal_dir}/bridge/bridge-platform.cpp
+  )
+  ADD_EXECUTABLE( accessibility-web-inspector
+    ${WEB_INSPECTOR_BRIDGE_SOURCES}
+    ${accessibility_common_root}/test/mock/mock-dbus-wrapper.cpp
+    ${accessibility_common_root}/test/test-accessible.cpp
+    ${accessibility_common_root}/tools/inspector/query-engine.cpp
+    ${accessibility_common_root}/tools/inspector/web-inspector.cpp
+  )
+  TARGET_INCLUDE_DIRECTORIES( accessibility-web-inspector PRIVATE
+    ${accessibility_common_root}
+    ${accessibility_common_root}/third-party
+  )
+  FIND_PACKAGE( Threads REQUIRED )
+  TARGET_LINK_LIBRARIES( accessibility-web-inspector Threads::Threads )
+ENDIF()
+
 MESSAGE( STATUS "" )
 MESSAGE( STATUS "Configuration:" )
-MESSAGE( STATUS "  Prefix:          ${PREFIX}" )
-MESSAGE( STATUS "  Enable AT-SPI:   ${ENABLE_ATSPI}" )
-MESSAGE( STATUS "  Enable Debug:    ${ENABLE_DEBUG}" )
-MESSAGE( STATUS "  Enable Coverage: ${ENABLE_COVERAGE}" )
-MESSAGE( STATUS "  Build Tests:     ${BUILD_TESTS}" )
-MESSAGE( STATUS "  Build Inspector: ${BUILD_INSPECTOR}" )
+MESSAGE( STATUS "  Prefix:              ${PREFIX}" )
+MESSAGE( STATUS "  Enable AT-SPI:       ${ENABLE_ATSPI}" )
+MESSAGE( STATUS "  Enable Debug:        ${ENABLE_DEBUG}" )
+MESSAGE( STATUS "  Enable Coverage:     ${ENABLE_COVERAGE}" )
+MESSAGE( STATUS "  Build Tests:         ${BUILD_TESTS}" )
+MESSAGE( STATUS "  Build Inspector:     ${BUILD_INSPECTOR}" )
+MESSAGE( STATUS "  Build Web Inspector: ${BUILD_WEB_INSPECTOR}" )
 MESSAGE( STATUS "" )
