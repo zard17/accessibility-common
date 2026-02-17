@@ -1,0 +1,11 @@
+prefix=@PREFIX@
+exec_prefix=@EXEC_PREFIX@
+apiversion=@DALI_ACCESSIBILITY_VERSION@
+libdir=@LIB_DIR@
+includedir=@DEV_INCLUDE_PATH@
+
+Name: accessibility-common
+Description: Accessibility Common Library
+Version: ${apiversion}
+Libs: -L${libdir} -laccessibility-common
+Cflags: -I${includedir}

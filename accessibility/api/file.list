@@ -1,0 +1,27 @@
+
+SET( accessibility_common_api_src_files
+  ${accessibility_common_api_dir}/accessibility.cpp
+  ${accessibility_common_api_dir}/log.cpp
+)
+
+SET( accessibility_common_api_header_files
+  ${accessibility_common_api_dir}/accessibility.h
+  ${accessibility_common_api_dir}/accessibility-bitset.h
+  ${accessibility_common_api_dir}/accessibility-bridge.h
+  ${accessibility_common_api_dir}/accessible.h
+  ${accessibility_common_api_dir}/proxy-accessible.h
+  ${accessibility_common_api_dir}/types.h
+  ${accessibility_common_api_dir}/log.h
+  ${accessibility_common_api_dir}/accessibility-feature.h
+  ${accessibility_common_api_dir}/action.h
+  ${accessibility_common_api_dir}/application.h
+  ${accessibility_common_api_dir}/collection.h
+  ${accessibility_common_api_dir}/component.h
+  ${accessibility_common_api_dir}/editable-text.h
+  ${accessibility_common_api_dir}/hyperlink.h
+  ${accessibility_common_api_dir}/hypertext.h
+  ${accessibility_common_api_dir}/selection.h
+  ${accessibility_common_api_dir}/socket.h
+  ${accessibility_common_api_dir}/text.h
+  ${accessibility_common_api_dir}/value.h
+)

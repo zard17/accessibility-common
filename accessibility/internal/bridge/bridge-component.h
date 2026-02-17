@@ -1,0 +1,116 @@
+#ifndef ACCESSIBILITY_INTERNAL_ACCESSIBILITY_BRIDGE_COMPONENT_H
+#define ACCESSIBILITY_INTERNAL_ACCESSIBILITY_BRIDGE_COMPONENT_H
+
+/*
+ * Copyright (c) 2026 Samsung Electronics Co., Ltd.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
+
+// EXTERNAL INCLUDES
+#include <array>
+#include <string>
+#include <tuple>
+#include <unordered_map>
+#include <vector>
+
+// INTERNAL INCLUDES
+#include <accessibility/api/accessible.h>
+#include <accessibility/internal/bridge/bridge-base.h>
+
+/**
+ * @brief The BridgeComponent class is to correspond with Accessibility::Component.
+ */
+class BridgeComponent : public virtual BridgeBase
+{
+protected:
+  /**
+   * @brief Constructor.
+   */
+  BridgeComponent();
+
+  /**
+   * @brief Registers Component functions to dbus interfaces.
+   */
+  void RegisterInterfaces();
+
+  /**
+   * @brief Returns the Component object of the currently executed DBus method call.
+   *
+   * @return The Component object
+   */
+  Accessibility::Accessible* FindSelf() const;
+
+public:
+  /**
+   * @copydoc Accessibility::Component::IsAccessibleContainingPoint()
+   */
+  DBus::ValueOrError<bool> IsAccessibleContainingPoint(int32_t x, int32_t y, uint32_t coordType);
+
+  /**
+   * @copydoc Accessibility::Component::GetAccessibleAtPoint()
+   */
+  DBus::ValueOrError<Accessibility::Accessible*> GetAccessibleAtPoint(int32_t x, int32_t y, uint32_t coordType);
+
+  /**
+   * @copydoc Accessibility::Component::GetExtents()
+   */
+  DBus::ValueOrError<std::tuple<int32_t, int32_t, int32_t, int32_t> > GetExtents(uint32_t coordType);
+
+  /**
+   * @brief Gets the position from the given coordinate.
+   * @param[in] coordType The enumeration with type of coordinate systems
+   * @return The X and Y position of rectangle
+   */
+  DBus::ValueOrError<int32_t, int32_t> GetPosition(uint32_t coordType);
+
+  /**
+   * @brief Gets the size from the given coordinate.
+   * @param[in] coordType The enumeration with type of coordinate systems
+   * @return The width and height of rectangle
+   */
+  DBus::ValueOrError<int32_t, int32_t> GetSize(uint32_t coordType);
+
+  /**
+   * @copydoc Accessibility::Component::GetLayer()
+   */
+  DBus::ValueOrError<Accessibility::ComponentLayer> GetLayer();
+
+  /**
+   * @copydoc Accessibility::Component::GetAlpha()
+   */
+  DBus::ValueOrError<double> GetAlpha();
+
+  /**
+   * @copydoc Accessibility::Component::GrabFocus()
+   */
+  DBus::ValueOrError<bool> GrabFocus();
+
+  /**
+   * @copydoc Accessibility::Component::GrabHighlight()
+   */
+  DBus::ValueOrError<bool> GrabHighlight();
+
+  /**
+   * @copydoc Accessibility::Component::ClearHighlight()
+   */
+  DBus::ValueOrError<bool> ClearHighlight();
+
+  /**
+   * @copydoc Accessibility::Component::GetMdiZOrder()
+   */
+  DBus::ValueOrError<int16_t> GetMdiZOrder();
+};
+
+#endif // ACCESSIBILITY_INTERNAL_ACCESSIBILITY_BRIDGE_COMPONENT_H

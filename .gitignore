@@ -1,0 +1,14 @@
+# Build artifacts
+build/tizen/build/
+*.o
+*.dylib
+*.so
+*.a
+
+# Old DALi directory (superseded by accessibility/)
+dali/
+
+# IDE files
+.vscode/
+.idea/
+*.swp

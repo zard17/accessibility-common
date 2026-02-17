@@ -1,0 +1,25 @@
+
+SET( accessibility_common_atspi_bridge_src_files
+  ${accessibility_common_internal_dir}/bridge/accessible.cpp
+  ${accessibility_common_internal_dir}/bridge/bridge-accessible.cpp
+  ${accessibility_common_internal_dir}/bridge/bridge-action.cpp
+  ${accessibility_common_internal_dir}/bridge/bridge-application.cpp
+  ${accessibility_common_internal_dir}/bridge/bridge-base.cpp
+  ${accessibility_common_internal_dir}/bridge/bridge-collection.cpp
+  ${accessibility_common_internal_dir}/bridge/bridge-component.cpp
+  ${accessibility_common_internal_dir}/bridge/bridge-editable-text.cpp
+  ${accessibility_common_internal_dir}/bridge/bridge-hyperlink.cpp
+  ${accessibility_common_internal_dir}/bridge/bridge-hypertext.cpp
+  ${accessibility_common_internal_dir}/bridge/bridge-impl.cpp
+  ${accessibility_common_internal_dir}/bridge/bridge-object.cpp
+  ${accessibility_common_internal_dir}/bridge/bridge-selection.cpp
+  ${accessibility_common_internal_dir}/bridge/bridge-socket.cpp
+  ${accessibility_common_internal_dir}/bridge/bridge-text.cpp
+  ${accessibility_common_internal_dir}/bridge/bridge-value.cpp
+  ${accessibility_common_internal_dir}/bridge/collection-impl.cpp
+  ${accessibility_common_internal_dir}/bridge/dbus/dbus-tizen.cpp
+)
+
+SET( accessibility_common_atspi_dummy_src_files
+  ${accessibility_common_internal_dir}/bridge/dummy/dummy-atspi.cpp
+)
