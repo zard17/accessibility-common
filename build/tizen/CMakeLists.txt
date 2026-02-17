@@ -144,7 +144,9 @@ INSTALL( FILES ${accessibility_common_public_api_dir}/accessibility-common.h DES
 
 # Install internal headers needed by toolkit adaptors for platform callbacks registration
 SET( accessibilityinternalbridgedir ${DEV_INCLUDE_PATH}/accessibility/internal/bridge )
-INSTALL( FILES ${accessibility_common_internal_dir}/bridge/bridge-platform.h DESTINATION ${accessibilityinternalbridgedir} )
+INSTALL( FILES ${accessibility_common_internal_dir}/bridge/bridge-platform.h
+               ${accessibility_common_internal_dir}/bridge/collection-impl.h
+         DESTINATION ${accessibilityinternalbridgedir} )
 
 # Configure and install pkg-config file
 IF( ENABLE_PKG_CONFIGURE )

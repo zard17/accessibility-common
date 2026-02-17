@@ -18,12 +18,13 @@
  *
  */
 
+#include <accessibility/public-api/accessibility-common.h>
 #include <accessibility/api/collection.h>
 #include <accessibility/api/accessible.h>
 
 namespace Accessibility
 {
-class CollectionImpl : public Collection
+class ACCESSIBILITY_API CollectionImpl : public Collection
 {
 public:
     /**
