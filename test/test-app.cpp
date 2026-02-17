@@ -328,15 +328,20 @@ int main(int argc, char** argv)
   }
 
   // ===== Step 12: Test - GetChildAtIndex =====
+  // Note: GetChildAtIndex returns Accessible* serialized as Address (so).
+  // Client-side Accessible* deserialization requires CurrentBridgePtr context,
+  // so we verify the returned Address directly.
   std::cout << "\n[12] Testing GetChildAtIndex..." << std::endl;
   {
     auto client = CreateAccessibleClient(busName, panel->GetId(), conn);
-    auto result = client.method<DBus::ValueOrError<Accessibility::Accessible*>(int)>("GetChildAtIndex").call(0);
+    auto result = client.method<DBus::ValueOrError<Accessibility::Address>(int)>("GetChildAtIndex").call(0);
     TEST_CHECK(!!result, "GetChildAtIndex(0) call succeeds for panel");
     if(result)
     {
-      auto* child = std::get<0>(result.getValues());
-      TEST_CHECK(child == button.get(), "Panel's first child is button");
+      auto address = std::get<0>(result.getValues());
+      TEST_CHECK(address.GetBus() == busName, "Child address has correct bus name");
+      TEST_CHECK(address.GetPath() == std::to_string(button->GetId()),
+                 "Child address path is button ID (" + address.GetPath() + ")");
     }
   }
 

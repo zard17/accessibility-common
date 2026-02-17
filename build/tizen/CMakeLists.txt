@@ -154,14 +154,22 @@ IF( ENABLE_PKG_CONFIGURE )
 ENDIF()
 
 # Test application
+# Tests compile bridge sources directly (not via shared lib) because the
+# library hides internal symbols with -fvisibility=hidden.
 OPTION( BUILD_TESTS "Build test applications" OFF )
 IF( BUILD_TESTS )
+  SET( TEST_BRIDGE_SOURCES
+    ${accessibility_common_atspi_bridge_src_files}
+    ${accessibility_common_dbus_stub_src_files}
+    ${accessibility_common_api_src_files}
+    ${accessibility_common_internal_dir}/bridge/bridge-platform.cpp
+  )
   ADD_EXECUTABLE( accessibility-test
+    ${TEST_BRIDGE_SOURCES}
     ${accessibility_common_root}/test/mock/mock-dbus-wrapper.cpp
     ${accessibility_common_root}/test/test-accessible.cpp
     ${accessibility_common_root}/test/test-app.cpp
   )
-  TARGET_LINK_LIBRARIES( accessibility-test ${name} )
   TARGET_INCLUDE_DIRECTORIES( accessibility-test PRIVATE ${accessibility_common_root} )
 ENDIF()
 

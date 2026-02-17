@@ -180,6 +180,21 @@ void MockDBusWrapper::SetupCannedResponses()
 
         if(ifaceName && propName)
         {
+          // Handle external AT-SPI status properties (not registered by bridge)
+          if(*ifaceName == "org.a11y.Status" &&
+             (*propName == "IsEnabled" || *propName == "ScreenReaderEnabled"))
+          {
+            auto reply = std::make_shared<MockMessage>();
+            reply->iter = std::make_shared<MockMessageIter>();
+            reply->request = mockReq;
+            auto variantIter = std::make_shared<MockMessageIter>();
+            variantIter->containerType = 'v';
+            variantIter->values.push_back(true); // Return enabled
+            reply->iter->children.push_back(variantIter);
+            reply->iter->signature = "v";
+            return reply;
+          }
+
           // Look up property in fallback registry
           FallbackKey key{*ifaceName, *propName};
           auto it = mFallbackPropertyRegistry.find(key);
@@ -281,34 +296,6 @@ void MockDBusWrapper::SetupCannedResponses()
       return reply;
     }});
 
-  // org.a11y.Status / IsEnabled -> false
-  mCannedResponses.push_back({"", "IsEnabled",
-    [this](const DBusWrapper::MessagePtr& req) -> DBusWrapper::MessagePtr {
-      auto reply = std::make_shared<MockMessage>();
-      reply->iter = std::make_shared<MockMessageIter>();
-      // Wrap in variant for Properties.Get
-      auto variantIter = std::make_shared<MockMessageIter>();
-      variantIter->containerType = 'v';
-      variantIter->values.push_back(false);
-      reply->iter->children.push_back(variantIter);
-      reply->iter->signature = "v";
-      reply->request = ToMock(req);
-      return reply;
-    }});
-
-  // ScreenReaderEnabled -> false
-  mCannedResponses.push_back({"", "ScreenReaderEnabled",
-    [this](const DBusWrapper::MessagePtr& req) -> DBusWrapper::MessagePtr {
-      auto reply = std::make_shared<MockMessage>();
-      reply->iter = std::make_shared<MockMessageIter>();
-      auto variantIter = std::make_shared<MockMessageIter>();
-      variantIter->containerType = 'v';
-      variantIter->values.push_back(false);
-      reply->iter->children.push_back(variantIter);
-      reply->iter->signature = "v";
-      reply->request = ToMock(req);
-      return reply;
-    }});
 }
 
 // --- Connection ---
