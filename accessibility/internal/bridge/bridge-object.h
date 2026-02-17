@@ -100,8 +100,6 @@ protected:
    */
   void EmitScrollFinished(Accessibility::Accessible* obj) override;
 
-protected:
-  DBus::DBusInterfaceDescription::SignalId mStateChanged;
 };
 
 #endif // ACCESSIBILITY_INTERNAL_ACCESSIBILITY_BRIDGE_OBJECT_H

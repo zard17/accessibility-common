@@ -43,6 +43,12 @@ accessibility-common/
       mock-dbus-wrapper.h/.cpp    # In-memory mock DBusWrapper
     test-accessible.h/.cpp        # Concrete Accessible for tests
     test-app.cpp                  # Test application
+  tools/
+    inspector/
+      inspector.cpp               # Interactive CLI accessibility inspector
+      tts.h                       # TTS interface header
+      tts-mac.mm                  # macOS TTS (AVSpeechSynthesizer)
+      tts-stub.cpp                # Fallback TTS (print to console)
   build/tizen/
     CMakeLists.txt                # Build system
 ```
@@ -102,11 +108,13 @@ Ipc::Server (abstract)              Ipc::Client (abstract)
   +-- addInterface()                  +-- isConnected()
   +-- getBusName()                    +-- operator bool()
   +-- getCurrentObjectPath()
-       |                                   |
-       v                                   v
+  +-- emitSignal()                  Ipc::SignalVariant
+       |                              = variant<int, string, Address, Rect<int>>
+       v                                   |
 Ipc::DbusIpcServer                  Ipc::DbusIpcClient
   wraps DBus::DBusServer              wraps DBus::DBusClient
-  +-- getDbusServer()                 +-- getDbusClient()
+  +-- emitSignal() -> emit2<>()       +-- getDbusClient()
+  +-- getDbusServer() [internal]
   +-- getConnection()
 
 Ipc::InterfaceDescription (base)
@@ -122,7 +130,9 @@ Ipc::ValueOrError<T>  <-- DBus::ValueOrError<T> (alias)
 Ipc::Error             <-- DBus::Error (alias)
 ```
 
-Bridge modules use `mIpcServer->addInterface()` for interface registration and `getDbusServer().emit2<>()` for signal emission. The D-Bus-specific serialization templates remain on the concrete `DBusInterfaceDescription` class. When a TIDL backend is added, it will provide its own `Server`, `Client`, and `InterfaceDescription` implementations.
+Bridge modules use `mIpcServer->addInterface()` for interface registration and `mIpcServer->emitSignal()` for signal emission. Signal payloads use `Ipc::SignalVariant` (a `std::variant` of int, string, Address, Rect<int>), which `DbusIpcServer` maps to `emit2<EldbusVariant<T>>()` calls via `std::visit`. The `getDbusServer()` method is private to `BridgeBase` and not accessible from bridge modules.
+
+The D-Bus-specific serialization templates remain on the concrete `DBusInterfaceDescription` class. When a TIDL or NSAccessibility backend is added, it will provide its own `Server`, `Client`, and `InterfaceDescription` implementations.
 
 ### PlatformCallbacks (internal/bridge/bridge-platform.h)
 
@@ -238,6 +248,38 @@ Provides the same portable symbols as `dbus-tizen.cpp` (static variables, `DBusC
 cmake .. -DENABLE_ATSPI=ON -DBUILD_TESTS=ON -DENABLE_PKG_CONFIGURE=OFF
 make
 ./accessibility-test
+```
+
+### Inspector Build
+
+`BUILD_INSPECTOR=ON` adds the `accessibility-inspector` executable. Like the test, it compiles bridge sources directly and uses MockDBusWrapper for in-process IPC.
+
+```
+cmake .. -DENABLE_ATSPI=ON -DBUILD_INSPECTOR=ON -DENABLE_PKG_CONFIGURE=OFF
+make
+./accessibility-inspector
+```
+
+The inspector builds a demo accessible tree, initializes the bridge, and provides an interactive CLI:
+- `p` — Print accessibility tree (with `>>` focus indicator)
+- `n`/`b` — Navigate forward/backward (uses bridge's `GetNeighbor`, walks HIGHLIGHTABLE elements)
+- `c`/`u` — Navigate to first child / parent
+- `r` — Read current element (name, role, states, bounds)
+- `s` — Speak current element via system TTS (AVSpeechSynthesizer on macOS, text output elsewhere)
+- `q` — Quit
+
+```
+Inspector (CLI consumer)
+  |
+  +-- DBusClient queries
+  |     |
+  v     v
+Bridge (BridgeImpl)
+  |
+  +-- Registered AT-SPI interfaces (same code as production)
+  |
+  v
+MockDBusWrapper (in-process routing)
 ```
 
 ### Known Limitations

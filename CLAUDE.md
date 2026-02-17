@@ -12,6 +12,7 @@ Standalone, toolkit-agnostic accessibility library extracted from DALi. Provides
 - `accessibility/internal/bridge/ipc/` - IPC abstraction layer: `Ipc::Server`, `Ipc::Client`, `Ipc::InterfaceDescription`, `Ipc::ValueOrError`
 - `accessibility/internal/bridge/dbus/` - D-Bus backend: `dbus.h` (serialization templates), `dbus-ipc-server.h` / `dbus-ipc-client.h` (IPC backend wrappers), `dbus-tizen.cpp` (EFL backend), `dbus-stub.cpp` (stub backend)
 - `test/` - Mock D-Bus wrapper, TestAccessible, test application
+- `tools/inspector/` - Interactive CLI accessibility inspector with TTS
 - `build/tizen/` - CMake build system
 
 ## Code Style
@@ -46,9 +47,61 @@ make -j$(nproc)
 # Expected: "=== Results: 31 passed, 0 failed ==="
 ```
 
+## Running the Accessibility Inspector
+
+The inspector is an interactive CLI tool that demonstrates accessibility working end-to-end. It creates a demo DALi-like accessible tree, initializes the bridge with MockDBusWrapper, and lets you browse the tree and hear TTS output.
+
+```bash
+cd build/tizen && mkdir -p build && cd build
+
+# Build with inspector
+cmake .. -DENABLE_ATSPI=ON -DBUILD_INSPECTOR=ON -DENABLE_PKG_CONFIGURE=OFF
+make -j$(nproc)
+
+# Run
+./accessibility-inspector
+```
+
+### Inspector Commands
+
+| Key | Action |
+|-----|--------|
+| `p` | Print the full accessibility tree (focused element marked with `>>`) |
+| `n` | Navigate to **next** focusable element (forward) |
+| `b` | Navigate to **previous** focusable element (backward) |
+| `c` | Navigate to **first child** of current element |
+| `u` | Navigate to **parent** of current element |
+| `r` | **Read** current element details (name, role, states, bounds) |
+| `s` | **Speak** current element via system TTS |
+| `h` | Show help |
+| `q` | Quit |
+
+### Demo Tree
+
+```
+[WINDOW] "Main Window"
+  [PANEL] "Header"
+    [PUSH_BUTTON] "Menu"        <- focusable
+    [LABEL] "My DALi App"
+  [PANEL] "Content"
+    [PUSH_BUTTON] "Play"        <- focusable
+    [SLIDER] "Volume"           <- focusable
+    [LABEL] "Now Playing: Bohemian Rhapsody"
+  [PANEL] "Footer"
+    [PUSH_BUTTON] "Previous"    <- focusable
+    [PUSH_BUTTON] "Next"        <- focusable
+```
+
+Forward navigation (`n`) walks: Menu -> Play -> Volume -> Previous -> Next.
+
+### TTS
+
+- **macOS**: Uses `AVSpeechSynthesizer` — speaks element role and name aloud
+- **Other platforms**: Prints `[TTS] ROLE. Name` to console
+
 ## Key Design Patterns
 
-- **IPC abstraction layer**: Bridge modules use `Ipc::Server` / `Ipc::Client` / `Ipc::InterfaceDescription` interfaces. D-Bus is the first backend (`Ipc::DbusIpcServer`, `Ipc::DbusIpcClient`). `Ipc::ValueOrError<T>` is protocol-neutral; `DBus::ValueOrError<T>` is a backward-compat alias.
+- **IPC abstraction layer**: Bridge modules use `Ipc::Server` / `Ipc::Client` / `Ipc::InterfaceDescription` interfaces. D-Bus is the first backend (`Ipc::DbusIpcServer`, `Ipc::DbusIpcClient`). `Ipc::ValueOrError<T>` is protocol-neutral; `DBus::ValueOrError<T>` is a backward-compat alias. Signal emission uses `mIpcServer->emitSignal()` with `Ipc::SignalVariant` payloads.
 - **DBusWrapper virtual interface**: All D-Bus operations go through `DBusWrapper::Installed()`. Swap backends via `DBusWrapper::Install(unique_ptr)`.
 - **Fallback interface registration**: Bridge modules register at path `"/"` with `fallback=true` via `mIpcServer->addInterface()`. `FindCurrentObject()` resolves the target from the request path.
 - **PlatformCallbacks**: Runtime callbacks decouple the bridge from any event loop or toolkit.

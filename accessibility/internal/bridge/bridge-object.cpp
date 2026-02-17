@@ -57,14 +57,14 @@ void BridgeObject::EmitActiveDescendantChanged(Accessible* obj, Accessible* chil
 
   auto index = child->GetIndexInParent();
 
-  getDbusServer().emit2<std::string, int, int, DBus::EldbusVariant<Address>, Address>(
+  mIpcServer->emitSignal(
     GetAccessiblePath(obj),
     Accessible::GetInterfaceName(AtspiInterface::EVENT_OBJECT),
     "ActiveDescendantChanged",
     "",
     index,
     0,
-    {child->GetAddress()},
+    child->GetAddress(),
     {"", "root"});
 }
 
@@ -91,14 +91,14 @@ void BridgeObject::Emit(std::shared_ptr<Accessible> obj, ObjectPropertyChangeEve
     {
       if(auto accessible = weakObj.lock())
       {
-        getDbusServer().emit2<std::string, int, int, DBus::EldbusVariant<int>, Address>(
+        mIpcServer->emitSignal(
           GetAccessiblePath(accessible.get()),
           Accessible::GetInterfaceName(AtspiInterface::EVENT_OBJECT),
           "PropertyChange",
           std::string{eventName->second},
           0,
           0,
-          {0},
+          0,
           {"", "root"});
       }
     });
@@ -139,14 +139,14 @@ void BridgeObject::Emit(Accessible* obj, WindowEvent event, unsigned int detail)
 
   if(eventName != eventMap.end())
   {
-    getDbusServer().emit2<std::string, int, int, DBus::EldbusVariant<int>, Address>(
+    mIpcServer->emitSignal(
       GetAccessiblePath(obj),
       Accessible::GetInterfaceName(AtspiInterface::EVENT_WINDOW),
       std::string{eventName->second},
       "",
       detail,
       0,
-      {0},
+      0,
       {"", "root"});
   }
 }
@@ -215,14 +215,14 @@ void BridgeObject::EmitStateChanged(std::shared_ptr<Accessible> obj, State state
     {
       if(auto accessible = weakObj.lock())
       {
-        getDbusServer().emit2<std::string, int, int, DBus::EldbusVariant<int>, Address>(
+        mIpcServer->emitSignal(
           GetAccessiblePath(accessible.get()),
           Accessible::GetInterfaceName(AtspiInterface::EVENT_OBJECT),
           "StateChanged",
           std::string{stateName->second},
           newValue,
           reserved,
-          {0},
+          0,
           {"", "root"});
       }
     });
@@ -240,17 +240,14 @@ void BridgeObject::EmitBoundsChanged(std::shared_ptr<Accessible> obj, Rect<int> 
   {
     if(auto accessible = weakObj.lock())
     {
-      DBus::EldbusVariant<std::tuple<int32_t, int32_t, int32_t, int32_t> > tmp{
-        std::tuple<int32_t, int32_t, int32_t, int32_t>{rect.x, rect.y, rect.width, rect.height}};
-
-      getDbusServer().emit2<std::string, int, int, DBus::EldbusVariant<std::tuple<int32_t, int32_t, int32_t, int32_t> >, Address>(
+      mIpcServer->emitSignal(
         GetAccessiblePath(accessible.get()),
         Accessible::GetInterfaceName(AtspiInterface::EVENT_OBJECT),
         "BoundsChanged",
         "",
         0,
         0,
-        tmp,
+        rect,
         {"", "root"});
     }
   });
@@ -279,14 +276,14 @@ void BridgeObject::EmitCursorMoved(Accessible* obj, unsigned int cursorPosition)
     return;
   }
 
-  getDbusServer().emit2<std::string, int, int, DBus::EldbusVariant<int>, Address>(
+  mIpcServer->emitSignal(
     GetAccessiblePath(obj),
     Accessible::GetInterfaceName(AtspiInterface::EVENT_OBJECT),
     "TextCaretMoved",
     "",
     cursorPosition,
     0,
-    {0},
+    0,
     {"", "root"});
 }
 
@@ -306,14 +303,14 @@ void BridgeObject::EmitTextChanged(Accessible* obj, TextChangedState state, unsi
 
   if(stateName != stateMap.end())
   {
-    getDbusServer().emit2<std::string, int, int, DBus::EldbusVariant<std::string>, Address>(
+    mIpcServer->emitSignal(
       GetAccessiblePath(obj),
       Accessible::GetInterfaceName(AtspiInterface::EVENT_OBJECT),
       "TextChanged",
       std::string{stateName->second},
       position,
       length,
-      {content},
+      content,
       {"", "root"});
   }
 }
@@ -325,14 +322,14 @@ void BridgeObject::EmitMovedOutOfScreen(Accessible* obj, ScreenRelativeMoveType 
     return;
   }
 
-  getDbusServer().emit2<std::string, int, int, DBus::EldbusVariant<int>, Address>(
+  mIpcServer->emitSignal(
     GetAccessiblePath(obj),
     Accessible::GetInterfaceName(AtspiInterface::EVENT_OBJECT),
     "MoveOuted",
     "",
     static_cast<int>(type),
     0,
-    {0},
+    0,
     {"", "root"});
 }
 
@@ -343,14 +340,14 @@ void BridgeObject::EmitScrollStarted(Accessible* obj)
     return;
   }
 
-  getDbusServer().emit2<std::string, int, int, DBus::EldbusVariant<int>, Address>(
+  mIpcServer->emitSignal(
     GetAccessiblePath(obj),
     Accessible::GetInterfaceName(AtspiInterface::EVENT_OBJECT),
     "ScrollStarted",
     "",
     0,
     0,
-    {0},
+    0,
     {"", "root"});
 }
 
@@ -361,13 +358,13 @@ void BridgeObject::EmitScrollFinished(Accessible* obj)
     return;
   }
 
-  getDbusServer().emit2<std::string, int, int, DBus::EldbusVariant<int>, Address>(
+  mIpcServer->emitSignal(
     GetAccessiblePath(obj),
     Accessible::GetInterfaceName(AtspiInterface::EVENT_OBJECT),
     "ScrollFinished",
     "",
     0,
     0,
-    {0},
+    0,
     {"", "root"});
 }

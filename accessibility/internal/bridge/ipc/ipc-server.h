@@ -20,10 +20,29 @@
 
 // EXTERNAL INCLUDES
 #include <string>
+#include <variant>
+
+// INTERNAL INCLUDES
+#include <accessibility/api/accessibility.h>
+#include <accessibility/api/types.h>
 
 namespace Ipc
 {
 class InterfaceDescription; // forward
+
+/**
+ * @brief Protocol-neutral signal payload type.
+ *
+ * Covers all variant types used in AT-SPI event signals:
+ * int (StateChanged, WindowEvent, etc.), string (TextChanged),
+ * Address (ActiveDescendantChanged), Rect<int> (BoundsChanged).
+ */
+using SignalVariant = std::variant<
+  int,
+  std::string,
+  Accessibility::Address,
+  Accessibility::Rect<int>
+>;
 
 /**
  * @brief Abstract server-side IPC interface.
@@ -59,6 +78,30 @@ public:
    * which object the request targets.
    */
   virtual std::string getCurrentObjectPath() const = 0;
+
+  /**
+   * @brief Emits an accessibility signal (AT-SPI event pattern).
+   *
+   * This is the protocol-neutral replacement for D-Bus emit2<>().
+   * Each IPC backend maps the parameters to its native signal mechanism.
+   *
+   * @param[in] objectPath   The object emitting the signal
+   * @param[in] interfaceName The interface the signal belongs to
+   * @param[in] signalName   The signal name (e.g. "StateChanged")
+   * @param[in] detail       Event detail string
+   * @param[in] detail1      First integer detail
+   * @param[in] detail2      Second integer detail
+   * @param[in] data         Signal payload (variant)
+   * @param[in] sender       Address of the sender
+   */
+  virtual void emitSignal(const std::string&             objectPath,
+                          const std::string&             interfaceName,
+                          const std::string&             signalName,
+                          const std::string&             detail,
+                          int                            detail1,
+                          int                            detail2,
+                          const SignalVariant&            data,
+                          const Accessibility::Address&  sender) = 0;
 };
 
 } // namespace Ipc

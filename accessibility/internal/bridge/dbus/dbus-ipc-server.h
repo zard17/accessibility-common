@@ -20,6 +20,7 @@
 
 // EXTERNAL INCLUDES
 #include <string>
+#include <tuple>
 
 // INTERNAL INCLUDES
 #include <accessibility/internal/bridge/dbus/dbus.h>
@@ -71,6 +72,43 @@ public:
   std::string getCurrentObjectPath() const override
   {
     return DBus::DBusServer::getCurrentObjectPath();
+  }
+
+  void emitSignal(const std::string&             objectPath,
+                  const std::string&             interfaceName,
+                  const std::string&             signalName,
+                  const std::string&             detail,
+                  int                            detail1,
+                  int                            detail2,
+                  const SignalVariant&            data,
+                  const Accessibility::Address&  sender) override
+  {
+    std::visit([&](const auto& value)
+    {
+      using T = std::decay_t<decltype(value)>;
+      if constexpr(std::is_same_v<T, int>)
+      {
+        mDbusServer.emit2<std::string, int, int, DBus::EldbusVariant<int>, Accessibility::Address>(
+          objectPath, interfaceName, signalName, detail, detail1, detail2, {value}, sender);
+      }
+      else if constexpr(std::is_same_v<T, std::string>)
+      {
+        mDbusServer.emit2<std::string, int, int, DBus::EldbusVariant<std::string>, Accessibility::Address>(
+          objectPath, interfaceName, signalName, detail, detail1, detail2, {value}, sender);
+      }
+      else if constexpr(std::is_same_v<T, Accessibility::Address>)
+      {
+        mDbusServer.emit2<std::string, int, int, DBus::EldbusVariant<Accessibility::Address>, Accessibility::Address>(
+          objectPath, interfaceName, signalName, detail, detail1, detail2, {value}, sender);
+      }
+      else if constexpr(std::is_same_v<T, Accessibility::Rect<int>>)
+      {
+        DBus::EldbusVariant<std::tuple<int32_t, int32_t, int32_t, int32_t>> tmp{
+          std::tuple<int32_t, int32_t, int32_t, int32_t>{value.x, value.y, value.width, value.height}};
+        mDbusServer.emit2<std::string, int, int, DBus::EldbusVariant<std::tuple<int32_t, int32_t, int32_t, int32_t>>, Accessibility::Address>(
+          objectPath, interfaceName, signalName, detail, detail1, detail2, tmp, sender);
+      }
+    }, data);
   }
 
   // D-Bus-specific accessors

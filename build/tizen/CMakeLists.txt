@@ -173,6 +173,34 @@ IF( BUILD_TESTS )
   TARGET_INCLUDE_DIRECTORIES( accessibility-test PRIVATE ${accessibility_common_root} )
 ENDIF()
 
+# Accessibility Inspector
+OPTION( BUILD_INSPECTOR "Build accessibility inspector tool" OFF )
+IF( BUILD_INSPECTOR )
+  SET( INSPECTOR_BRIDGE_SOURCES
+    ${accessibility_common_atspi_bridge_src_files}
+    ${accessibility_common_dbus_stub_src_files}
+    ${accessibility_common_api_src_files}
+    ${accessibility_common_internal_dir}/bridge/bridge-platform.cpp
+  )
+  ADD_EXECUTABLE( accessibility-inspector
+    ${INSPECTOR_BRIDGE_SOURCES}
+    ${accessibility_common_root}/test/mock/mock-dbus-wrapper.cpp
+    ${accessibility_common_root}/test/test-accessible.cpp
+    ${accessibility_common_root}/tools/inspector/inspector.cpp
+  )
+  TARGET_INCLUDE_DIRECTORIES( accessibility-inspector PRIVATE ${accessibility_common_root} )
+  IF( APPLE )
+    TARGET_SOURCES( accessibility-inspector PRIVATE
+      ${accessibility_common_root}/tools/inspector/tts-mac.mm
+    )
+    TARGET_LINK_LIBRARIES( accessibility-inspector "-framework AVFoundation" "-framework Foundation" objc )
+  ELSE()
+    TARGET_SOURCES( accessibility-inspector PRIVATE
+      ${accessibility_common_root}/tools/inspector/tts-stub.cpp
+    )
+  ENDIF()
+ENDIF()
+
 MESSAGE( STATUS "" )
 MESSAGE( STATUS "Configuration:" )
 MESSAGE( STATUS "  Prefix:          ${PREFIX}" )
@@ -180,4 +208,5 @@ MESSAGE( STATUS "  Enable AT-SPI:   ${ENABLE_ATSPI}" )
 MESSAGE( STATUS "  Enable Debug:    ${ENABLE_DEBUG}" )
 MESSAGE( STATUS "  Enable Coverage: ${ENABLE_COVERAGE}" )
 MESSAGE( STATUS "  Build Tests:     ${BUILD_TESTS}" )
+MESSAGE( STATUS "  Build Inspector: ${BUILD_INSPECTOR}" )
 MESSAGE( STATUS "" )

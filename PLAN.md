@@ -50,11 +50,11 @@ Created an in-process mock D-Bus layer and test framework to exercise the full b
 - Bridge API: FindByPath, AddTopLevelWindow
 - D-Bus serialization round-trips: string, uint32, enum, struct, array, bitset, Address
 
-### Phase 4: IPC Abstraction Layer (Complete — Phase 4a)
+### Phase 4: IPC Abstraction Layer (Complete — Phases 4a, 4b, 4c)
 
 Introduced a protocol-neutral IPC abstraction layer so the bridge logic can work with multiple IPC backends. D-Bus is wrapped as the first backend; all 31 existing tests pass through the new layer.
 
-**Deliverables (Phase 4a):**
+**Deliverables (Phase 4a — IPC Server/Client/InterfaceDescription):**
 - `ipc/ipc-result.h` - Protocol-neutral `Ipc::ValueOrError<T>`, `Ipc::Error`, `Ipc::ErrorType`; `DBus::ValueOrError` is now an alias
 - `ipc/ipc-server.h` - Abstract `Ipc::Server` interface (`addInterface`, `getBusName`, `getCurrentObjectPath`)
 - `ipc/ipc-client.h` - Abstract `Ipc::Client` interface (`isConnected`, `operator bool`)
@@ -63,18 +63,41 @@ Introduced a protocol-neutral IPC abstraction layer so the bridge logic can work
 - `dbus/dbus-ipc-client.h` - `Ipc::DbusIpcClient` wrapping `DBus::DBusClient`
 - `BridgeBase` refactored: `mDbusServer` / `mConnectionPtr` replaced with `std::unique_ptr<Ipc::Server> mIpcServer`
 - All bridge-*.cpp modules use `mIpcServer->addInterface()` instead of `mDbusServer.addInterface()`
-- Signal emission uses `getDbusServer().emit2<>()` accessor (D-Bus-specific, to be abstracted in Phase 4b)
 - `BridgeImpl` uses `getConnection()` accessor instead of `mConnectionPtr`
 - Backward-compatible: `DBus::ValueOrError`, `DBus::Error`, `DBus::ErrorType` are aliases to `Ipc::` types
 
-### Phase 4b: TIDL Backend (Planned)
+**Deliverables (Phase 4b — Signal Emission Abstraction):**
+- `ipc/ipc-server.h` - Added `Ipc::SignalVariant` (variant of int, string, Address, Rect<int>) and `emitSignal()` pure virtual
+- `dbus/dbus-ipc-server.h` - Implemented `emitSignal()` using `std::visit` to dispatch to D-Bus `emit2<>()`
+- `bridge-object.cpp` - Replaced all 11 `getDbusServer().emit2<>()` calls with `mIpcServer->emitSignal()` — now fully D-Bus-free
+- `bridge-base.h` - `getDbusServer()` made private; bridge modules no longer have direct D-Bus access
 
-Implement a TIDL backend using the IPC abstraction layer from Phase 4a.
+**Deliverables (Phase 4c — Accessibility Inspector):**
+- `tools/inspector/inspector.cpp` - Interactive CLI accessibility inspector with tree display, focus navigation, element reading, and TTS
+- `tools/inspector/tts-mac.mm` - macOS TTS via AVSpeechSynthesizer
+- `tools/inspector/tts-stub.cpp` - Fallback TTS (prints to console)
+- `tools/inspector/tts.h` - TTS interface header
+- CMake `BUILD_INSPECTOR` option
+- Demo tree: Window with Header/Content/Footer panels, buttons, slider, labels
+- Navigation uses bridge's `GetNeighbor()` which walks HIGHLIGHTABLE elements
+
+### Phase 4d: macOS NSAccessibility Backend (Planned)
+
+Create a native macOS accessibility backend using NSAccessibilityElement.
+
+**Goals:**
+- `DaliAccessibleNode` — NSAccessibilityElement subclass wrapping DALi Accessible objects
+- VoiceOver integration via accessibilityChildren, accessibilityHitTest, accessibilityFocusedUIElement
+- NSAccessibilityPostNotification for state/focus/value changes
+- Requires DALi rendering on macOS (NSWindow + OpenGL/Metal view)
+
+### Phase 4e: TIDL Backend (Planned)
+
+Implement a TIDL backend using the IPC abstraction layer.
 
 **Goals:**
 - Implement `Ipc::Server` and `Ipc::Client` for TIDL (generated proxy/stub from `.tidl` definitions)
-- Abstract signal emission (`emit2` → virtual `emitSignal`) so TIDL can use delegate callbacks
-- Abstract D-Bus-specific serialization types (`EldbusVariant`, `ObjectPath`) at the interface boundary
+- TIDL backend maps `emitSignal()` to delegate callbacks
 - Runtime backend selection (D-Bus vs TIDL) via configuration or environment variable
 
 ### Phase 5: Toolkit Integration (Planned)

@@ -500,19 +500,19 @@ protected:
   bool                         IsBoundsChangedEventAllowed{false};
 
   /**
-   * @brief Returns a reference to the underlying DBus::DBusServer.
-   *
-   * Used by bridge modules that need D-Bus-specific operations
-   * like signal emission (emit2). Returns a reference to the DBusServer
-   * inside the IPC server backend.
-   */
-  DBus::DBusServer& getDbusServer();
-  const DBus::DBusServer& getDbusServer() const;
-
-  /**
    * @brief Returns the D-Bus connection pointer from the IPC server backend.
    */
   const DBusWrapper::ConnectionPtr& getConnection() const;
+
+private:
+  /**
+   * @brief Returns a reference to the underlying DBus::DBusServer.
+   *
+   * Internal to BridgeBase — used only during init/shutdown.
+   * Bridge modules should use mIpcServer->emitSignal() instead.
+   */
+  DBus::DBusServer& getDbusServer();
+  const DBus::DBusServer& getDbusServer() const;
 };
 
 #endif // ACCESSIBILITY_INTERNAL_ACCESSIBILITY_BRIDGE_BASE_H
