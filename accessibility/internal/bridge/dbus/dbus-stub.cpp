@@ -149,13 +149,13 @@ DBus::DBusServer::DBusServer(const DBusWrapper::ConnectionPtr& conn)
 }
 
 DBus::DBusInterfaceDescription::DBusInterfaceDescription(std::string interfaceName)
-: interfaceName(std::move(interfaceName))
+: Ipc::InterfaceDescription(std::move(interfaceName))
 {
 }
 
 void DBus::DBusServer::addInterface(const std::string& pathName, DBusInterfaceDescription& dscr, bool fallback)
 {
-  DBUS_W->add_interface_impl(fallback, pathName, connection, destructorObject->destructors, dscr.interfaceName, dscr.methods, dscr.properties, dscr.signals);
+  DBUS_W->add_interface_impl(fallback, pathName, connection, destructorObject->destructors, dscr.mInterfaceName, dscr.methods, dscr.properties, dscr.signals);
 }
 
 std::string DBus::DBusServer::getBusName() const

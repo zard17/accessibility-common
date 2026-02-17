@@ -26,8 +26,15 @@ accessibility-common/
         bridge-*.cpp              # Other AT-SPI interfaces
         bridge-platform.h/.cpp    # PlatformCallbacks, RepeatingTimer
         accessibility-common.h    # D-Bus constants, signature specializations
+        ipc/
+          ipc-result.h            # Ipc::ValueOrError<T>, Error, ErrorType (protocol-neutral)
+          ipc-server.h            # Ipc::Server abstract interface
+          ipc-client.h            # Ipc::Client abstract interface
+          ipc-interface-description.h  # Ipc::InterfaceDescription base class
         dbus/
           dbus.h                  # DBusWrapper virtual interface, DBusClient/Server, serialization
+          dbus-ipc-server.h       # Ipc::DbusIpcServer wrapping DBus::DBusServer
+          dbus-ipc-client.h       # Ipc::DbusIpcClient wrapping DBus::DBusClient
           dbus-tizen.cpp          # EFL/eldbus implementation (Tizen only)
           dbus-stub.cpp           # Stub implementation (no EFL required)
           dbus-locators.h         # D-Bus bus/path/interface constants
@@ -86,6 +93,37 @@ DBusWrapper
   +-- eldbus_message_iter_*                # Type-safe serialization (12 types)
 ```
 
+### IPC Abstraction Layer (internal/bridge/ipc/)
+
+Protocol-neutral interfaces that decouple the bridge from any specific IPC backend. Bridge modules interact with `Ipc::Server` and `Ipc::Client` instead of D-Bus types directly.
+
+```
+Ipc::Server (abstract)              Ipc::Client (abstract)
+  +-- addInterface()                  +-- isConnected()
+  +-- getBusName()                    +-- operator bool()
+  +-- getCurrentObjectPath()
+       |                                   |
+       v                                   v
+Ipc::DbusIpcServer                  Ipc::DbusIpcClient
+  wraps DBus::DBusServer              wraps DBus::DBusClient
+  +-- getDbusServer()                 +-- getDbusClient()
+  +-- getConnection()
+
+Ipc::InterfaceDescription (base)
+  +-- getInterfaceName()
+       |
+       v
+DBus::DBusInterfaceDescription
+  +-- addMethod<T>()
+  +-- addProperty<T>()
+  +-- addSignal<ARGS...>()
+
+Ipc::ValueOrError<T>  <-- DBus::ValueOrError<T> (alias)
+Ipc::Error             <-- DBus::Error (alias)
+```
+
+Bridge modules use `mIpcServer->addInterface()` for interface registration and `getDbusServer().emit2<>()` for signal emission. The D-Bus-specific serialization templates remain on the concrete `DBusInterfaceDescription` class. When a TIDL backend is added, it will provide its own `Server`, `Client`, and `InterfaceDescription` implementations.
+
 ### PlatformCallbacks (internal/bridge/bridge-platform.h)
 
 Runtime callbacks that decouple the bridge from any specific event loop or toolkit.
@@ -129,13 +167,14 @@ Screen Reader                    Bridge                         Accessible
 
 ### Interface Registration (Fallback Pattern)
 
-All bridge modules register their D-Bus interfaces at path `"/"` with `fallback=true`. This means the callbacks match any object path. The bridge resolves the actual target Accessible using `FindCurrentObject()`, which extracts the object ID from the D-Bus request path.
+All bridge modules register their interfaces at path `"/"` with `fallback=true` via the IPC server abstraction. This means the callbacks match any object path. The bridge resolves the actual target Accessible using `FindCurrentObject()`, which extracts the object ID from the IPC request path.
 
 ```cpp
 // In bridge-accessible.cpp RegisterInterfaces():
-mDbusServer.addInterface("/", desc, true);  // fallback=true
+mIpcServer->addInterface("/", desc, true);  // fallback=true
 
 // In bridge-base.cpp FindCurrentObject():
+// Uses mIpcServer->getCurrentObjectPath() to get the request path
 // Path: "/org/a11y/atspi/accessible/1000" -> strips prefix -> "1000"
 // Looks up accessible by ID in registry
 ```

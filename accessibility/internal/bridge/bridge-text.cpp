@@ -39,7 +39,7 @@ void BridgeText::RegisterInterfaces()
   AddFunctionToInterface(desc, "SetSelection", &BridgeText::SetRangeOfSelection);
   AddFunctionToInterface(desc, "RemoveSelection", &BridgeText::RemoveSelection);
   AddFunctionToInterface(desc, "GetRangeExtents", &BridgeText::GetRangeExtents);
-  mDbusServer.addInterface("/", desc, true);
+  mIpcServer->addInterface("/", desc, true);
 }
 
 std::shared_ptr<Text> BridgeText::FindSelf() const

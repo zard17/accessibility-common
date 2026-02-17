@@ -584,7 +584,7 @@ void BridgeAccessible::RegisterInterfaces()
   AddFunctionToInterface(desc, "GetNodeInfo", &BridgeAccessible::GetNodeInfo);
   AddFunctionToInterface(desc, "DumpTree", &BridgeAccessible::DumpTree);
   AddFunctionToInterface(desc, "GetStringProperty", &BridgeAccessible::GetStringProperty);
-  mDbusServer.addInterface("/", desc, true);
+  mIpcServer->addInterface("/", desc, true);
 }
 
 Accessible* BridgeAccessible::FindSelf() const

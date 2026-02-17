@@ -32,7 +32,7 @@ void BridgeEditableText::RegisterInterfaces()
   AddFunctionToInterface(desc, "InsertText", &BridgeEditableText::InsertText);
   AddFunctionToInterface(desc, "PasteText", &BridgeEditableText::PasteText);
   AddFunctionToInterface(desc, "SetTextContents", &BridgeEditableText::SetTextContents);
-  mDbusServer.addInterface("/", desc, true);
+  mIpcServer->addInterface("/", desc, true);
 }
 
 std::shared_ptr<EditableText> BridgeEditableText::FindSelf() const

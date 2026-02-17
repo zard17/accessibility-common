@@ -37,6 +37,8 @@
 
 // INTERNAL INCLUDES
 #include <accessibility/api/accessibility.h>
+#include <accessibility/internal/bridge/ipc/ipc-interface-description.h>
+#include <accessibility/internal/bridge/ipc/ipc-result.h>
 #include <stdexcept>
 
 #define ATSPI_PREFIX_PATH "/org/a11y/atspi/accessible/"
@@ -478,212 +480,13 @@ void debugPrint(const char* file, size_t line, const char* format, ...);
  */
 void setDebugPrinter(std::function<void(const char*, size_t)>);
 
-/**
- * @brief Enumeration indicatng DBus error type
- */
-enum class ErrorType
-{
-  DEFAULT,      ///< default
-  INVALID_REPLY ///< reply message has error
-};
+// Backward-compatible aliases: delegate to protocol-neutral Ipc types
+using ErrorType = Ipc::ErrorType;
+using Error     = Ipc::Error;
+using Success   = Ipc::Success;
 
-struct Error
-{
-  std::string message;
-  ErrorType   errorType{ErrorType::DEFAULT};
-
-  Error() = default;
-  Error(std::string msg, ErrorType errorType = ErrorType::DEFAULT)
-  : message(std::move(msg)),
-    errorType(errorType)
-  {
-    assert(!message.empty());
-  }
-};
-
-struct Success
-{
-};
-
-/**
- * @brief Value representing data, that came from DBUS or error message
- *
- * Object of this class either helds series of values (of types ARGS...)
- * or error message. This object will be true in boolean context, if has data
- * and false, if an error occured.
- * It's valid to create ValueOrError object with empty argument list or void:
- * \code{.cpp}
- * ValueOrError<> v1;
- * ValueOrError<void> v2;
- * \endcode
- * Both mean the same - ValueOrError containing no real data and being a marker,
- * wherever operation successed or failed and containing possible error message.
- */
 template<typename... ARGS>
-class ValueOrError
-{
-public:
-  /**
-   * @brief Empty constructor. Valid only, if all ARGS types are default constructible.
-   */
-  ValueOrError() = default;
-
-  /**
-   * @brief Value constructor.
-   *
-   * This will be initialized as success with passed in values.
-   */
-  ValueOrError(ARGS... t)
-  : value(std::move(t)...)
-  {
-  }
-
-  /**
-   * @brief Alternative Value constructor.
-   *
-   * This will be initialized as success with passed in values.
-   */
-  ValueOrError(std::tuple<ARGS...> t)
-  : value(std::move(t))
-  {
-  }
-
-  /**
-   * @brief Error constructor. This will be initialized as failure with given error message.
-   */
-  ValueOrError(Error e)
-  : error(std::move(e))
-  {
-    assert(!error.message.empty());
-  }
-
-  /**
-   * @brief bool operator.
-   *
-   * Returns true, if operation was successful (getValues member is callable), or false
-   * when operation failed (getError is callable).
-   */
-  explicit operator bool() const
-  {
-    return error.message.empty();
-  }
-
-  /**
-   * @brief Returns error message object.
-   *
-   * Returns object containing error message associated with the failed operation.
-   * Only callable, if operation actually failed, otherwise will assert.
-   */
-  const Error& getError() const
-  {
-    return error;
-  }
-
-  /**
-   * @brief Returns modifiable tuple of held data.
-   *
-   * Returns reference to the internal tuple containing held data.
-   * User can modify (or move) data safely.
-   * Only callable, if operation actually successed, otherwise will assert.
-   */
-  std::tuple<ARGS...>& getValues()
-  {
-    assert(*this);
-    return value;
-  }
-
-  /**
-   * @brief Returns const tuple of held data.
-   *
-   * Returns const reference to the internal tuple containing held data.
-   * Only callable, if operation actually successed, otherwise will assert.
-   */
-  const std::tuple<ARGS...>& getValues() const
-  {
-    assert(*this);
-    return value;
-  }
-
-protected:
-  std::tuple<ARGS...> value;
-  Error               error;
-};
-
-template<>
-class ValueOrError<>
-{
-public:
-  ValueOrError() = default;
-  ValueOrError(std::tuple<> t)
-  {
-  }
-  ValueOrError(Error e)
-  : error(std::move(e))
-  {
-    assert(!error.message.empty());
-  }
-
-  explicit operator bool() const
-  {
-    return error.message.empty();
-  }
-  const Error& getError() const
-  {
-    return error;
-  }
-  std::tuple<>& getValues()
-  {
-    assert(*this);
-    static std::tuple<> t;
-    return t;
-  }
-  std::tuple<> getValues() const
-  {
-    assert(*this);
-    return {};
-  }
-
-protected:
-  Error error;
-};
-
-template<>
-class ValueOrError<void>
-{
-public:
-  ValueOrError() = default;
-  ValueOrError(Success)
-  {
-  }
-  ValueOrError(Error e)
-  : error(std::move(e))
-  {
-    assert(!error.message.empty());
-  }
-
-  explicit operator bool() const
-  {
-    return error.message.empty();
-  }
-  const Error& getError() const
-  {
-    return error;
-  }
-  std::tuple<>& getValues()
-  {
-    assert(*this);
-    static std::tuple<> t;
-    return t;
-  }
-  std::tuple<> getValues() const
-  {
-    assert(*this);
-    return {};
-  }
-
-protected:
-  Error error;
-};
+using ValueOrError = Ipc::ValueOrError<ARGS...>;
 
 using ObjectPath = ObjectPath;
 
@@ -2363,7 +2166,7 @@ private:
  * @brief Helper class describing DBUS's server interface
  *
  */
-class DBusInterfaceDescription
+class DBusInterfaceDescription : public Ipc::InterfaceDescription
 {
   friend class DBusServer;
 
@@ -2527,7 +2330,6 @@ private:
   std::vector<MethodInfo>   methods;
   std::vector<PropertyInfo> properties;
   std::vector<SignalInfo>   signals;
-  std::string               interfaceName;
 
   template<typename T>
   std::function<DBusWrapper::MessagePtr(const DBusWrapper::MessagePtr& msg)> construct(detail::CallId                                    callId,
@@ -2764,19 +2566,6 @@ void                       requestBusName(const DBusWrapper::ConnectionPtr& conn
 void                       releaseBusName(const DBusWrapper::ConnectionPtr& conn, const std::string& bus);
 } // namespace DBus
 
-namespace std
-{
-template<size_t INDEX, typename... ARGS>
-inline auto get(DBus::ValueOrError<ARGS...>& v) -> decltype(std::get<INDEX>(v.getValues()))&
-{
-  return std::get<INDEX>(v.getValues());
-}
-
-template<size_t INDEX, typename... ARGS>
-inline auto get(const DBus::ValueOrError<ARGS...>& v) -> decltype(std::get<INDEX>(v.getValues()))
-{
-  return std::get<INDEX>(v.getValues());
-}
-} // namespace std
+// std::get overloads for ValueOrError are provided by ipc-result.h
 
 #endif // ACCESSIBILITY_INTERNAL_ACCESSIBILITY_BRIDGE_DBUS_H

@@ -30,7 +30,7 @@ void BridgeHypertext::RegisterInterfaces()
   AddFunctionToInterface(desc, "GetNLinks", &BridgeHypertext::GetLinkCount);
   AddFunctionToInterface(desc, "GetLink", &BridgeHypertext::GetLink);
   AddFunctionToInterface(desc, "GetLinkIndex", &BridgeHypertext::GetLinkIndex);
-  mDbusServer.addInterface("/", desc, true);
+  mIpcServer->addInterface("/", desc, true);
 }
 
 std::shared_ptr<Hypertext> BridgeHypertext::FindSelf() const

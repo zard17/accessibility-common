@@ -50,15 +50,32 @@ Created an in-process mock D-Bus layer and test framework to exercise the full b
 - Bridge API: FindByPath, AddTopLevelWindow
 - D-Bus serialization round-trips: string, uint32, enum, struct, array, bitset, Address
 
-### Phase 4: Alternative IPC Backend (Planned)
+### Phase 4: IPC Abstraction Layer (Complete — Phase 4a)
 
-Abstract the IPC layer to support TIDL (Tizen Interface Definition Language) as an alternative to D-Bus, similar to Android's AIDL approach.
+Introduced a protocol-neutral IPC abstraction layer so the bridge logic can work with multiple IPC backends. D-Bus is wrapped as the first backend; all 31 existing tests pass through the new layer.
+
+**Deliverables (Phase 4a):**
+- `ipc/ipc-result.h` - Protocol-neutral `Ipc::ValueOrError<T>`, `Ipc::Error`, `Ipc::ErrorType`; `DBus::ValueOrError` is now an alias
+- `ipc/ipc-server.h` - Abstract `Ipc::Server` interface (`addInterface`, `getBusName`, `getCurrentObjectPath`)
+- `ipc/ipc-client.h` - Abstract `Ipc::Client` interface (`isConnected`, `operator bool`)
+- `ipc/ipc-interface-description.h` - Base `Ipc::InterfaceDescription`; `DBus::DBusInterfaceDescription` inherits from it
+- `dbus/dbus-ipc-server.h` - `Ipc::DbusIpcServer` wrapping `DBus::DBusServer`
+- `dbus/dbus-ipc-client.h` - `Ipc::DbusIpcClient` wrapping `DBus::DBusClient`
+- `BridgeBase` refactored: `mDbusServer` / `mConnectionPtr` replaced with `std::unique_ptr<Ipc::Server> mIpcServer`
+- All bridge-*.cpp modules use `mIpcServer->addInterface()` instead of `mDbusServer.addInterface()`
+- Signal emission uses `getDbusServer().emit2<>()` accessor (D-Bus-specific, to be abstracted in Phase 4b)
+- `BridgeImpl` uses `getConnection()` accessor instead of `mConnectionPtr`
+- Backward-compatible: `DBus::ValueOrError`, `DBus::Error`, `DBus::ErrorType` are aliases to `Ipc::` types
+
+### Phase 4b: TIDL Backend (Planned)
+
+Implement a TIDL backend using the IPC abstraction layer from Phase 4a.
 
 **Goals:**
-- Define an IPC-agnostic interface layer between the bridge and transport
-- Implement TIDL backend for Tizen
-- Keep D-Bus backend for backward compatibility
-- Use MockDBusWrapper pattern as reference for the abstraction boundary
+- Implement `Ipc::Server` and `Ipc::Client` for TIDL (generated proxy/stub from `.tidl` definitions)
+- Abstract signal emission (`emit2` → virtual `emitSignal`) so TIDL can use delegate callbacks
+- Abstract D-Bus-specific serialization types (`EldbusVariant`, `ObjectPath`) at the interface boundary
+- Runtime backend selection (D-Bus vs TIDL) via configuration or environment variable
 
 ### Phase 5: Toolkit Integration (Planned)
 

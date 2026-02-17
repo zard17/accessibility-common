@@ -33,7 +33,7 @@ void BridgeAction::RegisterInterfaces()
   AddFunctionToInterface(desc, "GetKeyBinding", &BridgeAction::GetActionKeyBinding);
   AddFunctionToInterface(desc, "DoAction", &BridgeAction::DoAction);
   AddFunctionToInterface(desc, "DoActionName", &BridgeAction::DoActionName);
-  mDbusServer.addInterface("/", desc, true);
+  mIpcServer->addInterface("/", desc, true);
 }
 
 std::shared_ptr<Action> BridgeAction::FindSelf() const

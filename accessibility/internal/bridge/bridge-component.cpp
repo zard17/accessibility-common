@@ -46,7 +46,7 @@ void BridgeComponent::RegisterInterfaces()
   AddFunctionToInterface(desc, "GrabHighlight", &BridgeComponent::GrabHighlight);
   AddFunctionToInterface(desc, "GrabFocus", &BridgeComponent::GrabFocus);
   AddFunctionToInterface(desc, "ClearHighlight", &BridgeComponent::ClearHighlight);
-  mDbusServer.addInterface("/", desc, true);
+  mIpcServer->addInterface("/", desc, true);
 }
 
 Accessible* BridgeComponent::FindSelf() const

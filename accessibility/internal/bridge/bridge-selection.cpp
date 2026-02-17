@@ -33,7 +33,7 @@ void BridgeSelection::RegisterInterfaces()
   AddFunctionToInterface(desc, "SelectAll", &BridgeSelection::SelectAll);
   AddFunctionToInterface(desc, "ClearSelection", &BridgeSelection::ClearSelection);
   AddFunctionToInterface(desc, "DeselectChild", &BridgeSelection::DeselectChild);
-  mDbusServer.addInterface("/", desc, true);
+  mIpcServer->addInterface("/", desc, true);
 }
 
 std::shared_ptr<Selection> BridgeSelection::FindSelf() const

@@ -371,8 +371,7 @@ public:
     }
     mIdleHandle                = 0;
     mAccessibilityStatusClient = {};
-    mDbusServer                = {};
-    mConnectionPtr             = {};
+    mIpcServer.reset();
   }
 
   bool ForceUpTimerCallback()
@@ -417,8 +416,8 @@ public:
     BridgeHyperlink::RegisterInterfaces();
     BridgeSocket::RegisterInterfaces();
 
-    mRegistryClient      = {AtspiDbusNameRegistry, AtspiDbusPathDec, Accessible::GetInterfaceName(AtspiInterface::DEVICE_EVENT_CONTROLLER), mConnectionPtr};
-    mDirectReadingClient = DBus::DBusClient{DirectReadingDBusName, DirectReadingDBusPath, DirectReadingDBusInterface, mConnectionPtr};
+    mRegistryClient      = {AtspiDbusNameRegistry, AtspiDbusPathDec, Accessible::GetInterfaceName(AtspiInterface::DEVICE_EVENT_CONTROLLER), getConnection()};
+    mDirectReadingClient = DBus::DBusClient{DirectReadingDBusName, DirectReadingDBusPath, DirectReadingDBusInterface, getConnection()};
 
     mDirectReadingClient.addSignal<void(int32_t, std::string)>("ReadingStateChanged", [=](int32_t id, std::string readingState)
     {
@@ -959,7 +958,7 @@ public:
 private:
   DBus::DBusClient CreateSocketClient(const Address& socket)
   {
-    return {socket.GetBus(), ATSPI_PREFIX_PATH + socket.GetPath(), Accessible::GetInterfaceName(AtspiInterface::SOCKET), mConnectionPtr};
+    return {socket.GetBus(), ATSPI_PREFIX_PATH + socket.GetPath(), Accessible::GetInterfaceName(AtspiInterface::SOCKET), getConnection()};
   }
 
   void RequestBusName(const std::string& busName)
@@ -969,7 +968,7 @@ private:
       return;
     }
 
-    DBus::requestBusName(mConnectionPtr, busName);
+    DBus::requestBusName(getConnection(), busName);
   }
 
   void ReleaseBusName(const std::string& busName)
@@ -979,7 +978,7 @@ private:
       return;
     }
 
-    DBus::releaseBusName(mConnectionPtr, busName);
+    DBus::releaseBusName(getConnection(), busName);
   }
 
   bool mTerminateFunctionCalled{false};

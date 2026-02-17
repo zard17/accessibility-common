@@ -31,6 +31,8 @@
 #include <accessibility/api/types.h>
 #include <accessibility/internal/bridge/bridge-platform.h>
 #include <accessibility/internal/bridge/collection-impl.h>
+#include <accessibility/internal/bridge/dbus/dbus-ipc-server.h>
+#include <accessibility/internal/bridge/dbus/dbus-ipc-client.h>
 
 using namespace Accessibility;
 
@@ -401,23 +403,23 @@ BridgeBase::ForceUpResult BridgeBase::ForceUp()
     return ForceUpResult::FAILED;
   }
 
-  mConnectionPtr  = DBusWrapper::Installed()->eldbus_address_connection_get_impl(std::get<0>(addr));
-  mData->mBusName = DBus::getConnectionName(mConnectionPtr);
-  mDbusServer     = {mConnectionPtr};
+  auto connectionPtr = DBusWrapper::Installed()->eldbus_address_connection_get_impl(std::get<0>(addr));
+  mData->mBusName    = DBus::getConnectionName(connectionPtr);
+  mIpcServer         = std::make_unique<Ipc::DbusIpcServer>(connectionPtr);
 
   {
     DBus::DBusInterfaceDescription desc{Accessible::GetInterfaceName(AtspiInterface::CACHE)};
     AddFunctionToInterface(desc, "GetItems", &BridgeBase::GetItems);
-    mDbusServer.addInterface(AtspiDbusPathCache, desc);
+    mIpcServer->addInterface(AtspiDbusPathCache, desc);
   }
 
   {
     DBus::DBusInterfaceDescription desc{Accessible::GetInterfaceName(AtspiInterface::APPLICATION)};
     AddGetSetPropertyToInterface(desc, "Id", &BridgeBase::GetId, &BridgeBase::SetId);
-    mDbusServer.addInterface(AtspiPath, desc);
+    mIpcServer->addInterface(AtspiPath, desc);
   }
 
-  mRegistry = {AtspiDbusNameRegistry, AtspiDbusPathRegistry, Accessible::GetInterfaceName(AtspiInterface::REGISTRY), mConnectionPtr};
+  mRegistry = {AtspiDbusNameRegistry, AtspiDbusPathRegistry, Accessible::GetInterfaceName(AtspiInterface::REGISTRY), getConnection()};
   UpdateRegisteredEvents();
 
   mRegistry.addSignal<void(void)>("EventListenerRegistered", [this](void)
@@ -439,9 +441,8 @@ void BridgeBase::ForceDown()
   gTickTimer.Stop();
   mCoalescableMessages.clear();
   DBusWrapper::Installed()->Strings.clear();
-  mRegistry      = {};
-  mDbusServer    = {};
-  mConnectionPtr = {};
+  mRegistry   = {};
+  mIpcServer.reset();
 }
 
 const std::string& BridgeBase::GetBusName() const
@@ -612,7 +613,7 @@ Accessible* BridgeBase::Find(const Address& ptr) const
 
 Accessible* BridgeBase::FindCurrentObject() const
 {
-  auto path = DBus::DBusServer::getCurrentObjectPath();
+  auto path = mIpcServer ? mIpcServer->getCurrentObjectPath() : std::string{};
   auto size = strlen(AtspiPath);
 
   if(path.size() <= size)
@@ -647,4 +648,19 @@ int BridgeBase::GetId()
 auto BridgeBase::GetItems() -> DBus::ValueOrError<std::vector<CacheElementType>>
 {
   return {};
+}
+
+DBus::DBusServer& BridgeBase::getDbusServer()
+{
+  return static_cast<Ipc::DbusIpcServer&>(*mIpcServer).getDbusServer();
+}
+
+const DBus::DBusServer& BridgeBase::getDbusServer() const
+{
+  return static_cast<const Ipc::DbusIpcServer&>(*mIpcServer).getDbusServer();
+}
+
+const DBusWrapper::ConnectionPtr& BridgeBase::getConnection() const
+{
+  return static_cast<const Ipc::DbusIpcServer&>(*mIpcServer).getConnection();
 }

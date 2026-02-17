@@ -30,7 +30,7 @@ void BridgeSocket::RegisterInterfaces()
   AddFunctionToInterface(desc, "Unembed", &BridgeSocket::Unembed);
   AddFunctionToInterface(desc, "SetOffset", &BridgeSocket::SetOffset);
 
-  mDbusServer.addInterface("/", desc, true);
+  mIpcServer->addInterface("/", desc, true);
 }
 
 std::shared_ptr<Socket> BridgeSocket::FindSelf() const

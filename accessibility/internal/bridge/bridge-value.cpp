@@ -34,7 +34,7 @@ void BridgeValue::RegisterInterfaces()
   AddGetPropertyToInterface(desc, "MaximumValue", &BridgeValue::GetMaximumValue);
   AddGetPropertyToInterface(desc, "MinimumIncrement", &BridgeValue::GetMinimumIncrement);
   AddGetPropertyToInterface(desc, "MinimumValue", &BridgeValue::GetMinimumValue);
-  mDbusServer.addInterface("/", desc, true);
+  mIpcServer->addInterface("/", desc, true);
 }
 
 std::shared_ptr<Value> BridgeValue::FindSelf() const

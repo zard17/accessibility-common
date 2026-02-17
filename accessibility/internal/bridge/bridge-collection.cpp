@@ -33,7 +33,7 @@ void BridgeCollection::RegisterInterfaces()
   AddFunctionToInterface(desc, "GetMatches", &BridgeCollection::GetMatches);
   AddFunctionToInterface(desc, "GetMatchesInMatches", &BridgeCollection::GetMatchesInMatches);
 
-  mDbusServer.addInterface("/", desc, true);
+  mIpcServer->addInterface("/", desc, true);
 }
 
 std::shared_ptr<Collection> BridgeCollection::FindSelf() const

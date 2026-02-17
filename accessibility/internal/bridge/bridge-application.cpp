@@ -31,7 +31,7 @@ void BridgeApplication::RegisterInterfaces()
   AddGetPropertyToInterface(desc, "Version", &BridgeApplication::GetVersion);
   AddFunctionToInterface(desc, "GetIncludeHidden", &BridgeApplication::GetIncludeHidden);
   AddFunctionToInterface(desc, "SetIncludeHidden", &BridgeApplication::SetIncludeHidden);
-  mDbusServer.addInterface("/", desc, true);
+  mIpcServer->addInterface("/", desc, true);
 }
 
 std::shared_ptr<Application> BridgeApplication::FindSelf() const

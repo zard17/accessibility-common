@@ -33,7 +33,7 @@ void BridgeHyperlink::RegisterInterfaces()
   AddFunctionToInterface(desc, "GetObject", &BridgeHyperlink::GetAnchorAccessible);
   AddFunctionToInterface(desc, "GetURI", &BridgeHyperlink::GetAnchorUri);
   AddFunctionToInterface(desc, "IsValid", &BridgeHyperlink::IsValid);
-  mDbusServer.addInterface("/", desc, true);
+  mIpcServer->addInterface("/", desc, true);
 }
 
 std::shared_ptr<Hyperlink> BridgeHyperlink::FindSelf() const

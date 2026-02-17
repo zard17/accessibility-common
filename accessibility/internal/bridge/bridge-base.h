@@ -31,6 +31,7 @@
 #include <accessibility/api/socket.h>
 #include <accessibility/internal/bridge/accessibility-common.h>
 #include <accessibility/internal/bridge/collection-impl.h>
+#include <accessibility/internal/bridge/ipc/ipc-server.h>
 
 namespace Accessibility
 {
@@ -493,11 +494,25 @@ protected:
    */
   void ForceDown() override;
 
-  DBus::DBusServer           mDbusServer;
-  DBusWrapper::ConnectionPtr mConnectionPtr;
-  int                        mId = 0;
-  DBus::DBusClient           mRegistry;
-  bool                       IsBoundsChangedEventAllowed{false};
+  std::unique_ptr<Ipc::Server> mIpcServer;
+  int                          mId = 0;
+  DBus::DBusClient             mRegistry;
+  bool                         IsBoundsChangedEventAllowed{false};
+
+  /**
+   * @brief Returns a reference to the underlying DBus::DBusServer.
+   *
+   * Used by bridge modules that need D-Bus-specific operations
+   * like signal emission (emit2). Returns a reference to the DBusServer
+   * inside the IPC server backend.
+   */
+  DBus::DBusServer& getDbusServer();
+  const DBus::DBusServer& getDbusServer() const;
+
+  /**
+   * @brief Returns the D-Bus connection pointer from the IPC server backend.
+   */
+  const DBusWrapper::ConnectionPtr& getConnection() const;
 };
 
 #endif // ACCESSIBILITY_INTERNAL_ACCESSIBILITY_BRIDGE_BASE_H
