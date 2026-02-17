@@ -187,4 +187,21 @@ ENABLE_ATSPI=ON + no eldbus: Full bridge + dbus-stub.cpp  (test/CI)
 ENABLE_ATSPI=OFF:            DummyBridge only              (no a11y)
 ```
 
-`BUILD_TESTS=ON` adds the `accessibility-test` executable that uses MockDBusWrapper to exercise the bridge without real D-Bus.
+### dbus-stub.cpp
+
+Provides the same portable symbols as `dbus-tizen.cpp` (static variables, `DBusClient`/`DBusServer` constructors, `DBusWrapper::Install`/`Installed`) but without the EFL `DefaultDBusWrapper`. Callers must install their own `DBusWrapper` via `Install()` before any D-Bus operations.
+
+### Test Build
+
+`BUILD_TESTS=ON` adds the `accessibility-test` executable. The test compiles all bridge sources directly rather than linking against the shared library, because the library uses `-fvisibility=hidden` which hides internal symbols (`DBusWrapper`, `DBusClient`, etc.) that the test needs to access.
+
+```
+cmake .. -DENABLE_ATSPI=ON -DBUILD_TESTS=ON -DENABLE_PKG_CONFIGURE=OFF
+make
+./accessibility-test
+```
+
+### Known Limitations
+
+- `Accessible*` deserialization from D-Bus messages requires `CurrentBridgePtr` context (only available during server-side callback processing). Client-side tests verify the serialized `Address` instead.
+- The mock's `addIdle`/`createTimer` callbacks execute synchronously and immediately. This is sufficient for testing but doesn't simulate real async behavior.

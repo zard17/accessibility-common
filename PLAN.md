@@ -31,22 +31,24 @@ Removed all DALi/EFL compile-time dependencies from the library's public and int
 - Platform-agnostic logging via `ACCESSIBILITY_LOG_*` macros
 - `dbus-stub.cpp` for building without eldbus (macOS, non-Tizen Linux)
 
-### Phase 3: Mock D-Bus + Test Infrastructure (Current)
+### Phase 3: Mock D-Bus + Test Infrastructure (Complete)
 
-Created an in-process mock D-Bus layer and test framework to exercise the full bridge serialization pipeline without real D-Bus IPC.
+Created an in-process mock D-Bus layer and test framework to exercise the full bridge serialization pipeline without real D-Bus IPC. All 31 tests pass on macOS.
 
 **Deliverables:**
 - `test/mock/mock-dbus-wrapper.h/.cpp` - MockDBusWrapper implementing all DBusWrapper virtual methods in-memory
 - `test/test-accessible.h/.cpp` - Concrete Accessible+Component for building test trees
 - `test/test-app.cpp` - Test application exercising bridge initialization, property access, method calls
+- `accessibility/internal/bridge/dbus/dbus-stub.cpp` - D-Bus stub backend for platforms without eldbus
 - CMake `BUILD_TESTS` option
+- Test executable compiles bridge sources directly (shared library uses `-fvisibility=hidden`)
 
-**Test coverage:**
+**Test coverage (31 tests):**
 - Bridge lifecycle: Initialize, ForceUp, Terminate
 - Accessible interface: GetRole, GetName, GetChildCount, GetChildAtIndex, GetState
 - Component interface: GetExtents
 - Bridge API: FindByPath, AddTopLevelWindow
-- D-Bus serialization round-trips: string, uint32, enum, struct, array, bitset
+- D-Bus serialization round-trips: string, uint32, enum, struct, array, bitset, Address
 
 ### Phase 4: Alternative IPC Backend (Planned)
 
