@@ -17,7 +17,14 @@ SET( accessibility_common_atspi_bridge_src_files
   ${accessibility_common_internal_dir}/bridge/bridge-text.cpp
   ${accessibility_common_internal_dir}/bridge/bridge-value.cpp
   ${accessibility_common_internal_dir}/bridge/collection-impl.cpp
+)
+
+SET( accessibility_common_dbus_tizen_src_files
   ${accessibility_common_internal_dir}/bridge/dbus/dbus-tizen.cpp
+)
+
+SET( accessibility_common_dbus_stub_src_files
+  ${accessibility_common_internal_dir}/bridge/dbus/dbus-stub.cpp
 )
 
 SET( accessibility_common_atspi_dummy_src_files

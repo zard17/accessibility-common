@@ -60,6 +60,11 @@ SET( SOURCES
 
 IF( ENABLE_ATSPI )
   SET( SOURCES ${SOURCES} ${accessibility_common_atspi_bridge_src_files} )
+  IF( eldbus_available )
+    SET( SOURCES ${SOURCES} ${accessibility_common_dbus_tizen_src_files} )
+  ELSE()
+    SET( SOURCES ${SOURCES} ${accessibility_common_dbus_stub_src_files} )
+  ENDIF()
 ELSE()
   SET( SOURCES ${SOURCES} ${accessibility_common_atspi_dummy_src_files} )
 ENDIF()
@@ -148,10 +153,23 @@ IF( ENABLE_PKG_CONFIGURE )
   INSTALL( FILES ${PKG_CFG_FILE} DESTINATION ${LIB_DIR}/pkgconfig )
 ENDIF()
 
+# Test application
+OPTION( BUILD_TESTS "Build test applications" OFF )
+IF( BUILD_TESTS )
+  ADD_EXECUTABLE( accessibility-test
+    ${accessibility_common_root}/test/mock/mock-dbus-wrapper.cpp
+    ${accessibility_common_root}/test/test-accessible.cpp
+    ${accessibility_common_root}/test/test-app.cpp
+  )
+  TARGET_LINK_LIBRARIES( accessibility-test ${name} )
+  TARGET_INCLUDE_DIRECTORIES( accessibility-test PRIVATE ${accessibility_common_root} )
+ENDIF()
+
 MESSAGE( STATUS "" )
 MESSAGE( STATUS "Configuration:" )
 MESSAGE( STATUS "  Prefix:          ${PREFIX}" )
 MESSAGE( STATUS "  Enable AT-SPI:   ${ENABLE_ATSPI}" )
 MESSAGE( STATUS "  Enable Debug:    ${ENABLE_DEBUG}" )
 MESSAGE( STATUS "  Enable Coverage: ${ENABLE_COVERAGE}" )
+MESSAGE( STATUS "  Build Tests:     ${BUILD_TESTS}" )
 MESSAGE( STATUS "" )
