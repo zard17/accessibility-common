@@ -23,6 +23,10 @@ SET( accessibility_common_dbus_tizen_src_files
   ${accessibility_common_internal_dir}/bridge/dbus/dbus-tizen.cpp
 )
 
+SET( accessibility_common_dbus_gdbus_src_files
+  ${accessibility_common_internal_dir}/bridge/dbus/dbus-gdbus.cpp
+)
+
 SET( accessibility_common_dbus_stub_src_files
   ${accessibility_common_internal_dir}/bridge/dbus/dbus-stub.cpp
 )
