@@ -164,14 +164,45 @@ void WebInspectorServer::Start(DirectQueryEngine& engine, int port)
     res.set_content(ElementInfoToJson(info), "application/json");
   });
 
-  // POST /api/navigate — placeholder (returns current element)
-  mImpl->server.Post("/api/navigate", [&engine, &engineMutex](const httplib::Request&, httplib::Response& res) {
+  // POST /api/navigate — navigates in the given direction
+  mImpl->server.Post("/api/navigate", [&engine, &engineMutex](const httplib::Request& req, httplib::Response& res) {
+    // Parse direction from request body
+    std::string direction;
+    auto pos = req.body.find("\"direction\"");
+    if(pos != std::string::npos)
+    {
+      auto colonPos = req.body.find(':', pos);
+      if(colonPos != std::string::npos)
+      {
+        auto quoteStart = req.body.find('"', colonPos + 1);
+        auto quoteEnd   = req.body.find('"', quoteStart + 1);
+        if(quoteStart != std::string::npos && quoteEnd != std::string::npos)
+        {
+          direction = req.body.substr(quoteStart + 1, quoteEnd - quoteStart - 1);
+        }
+      }
+    }
+
     std::lock_guard<std::mutex> lock(engineMutex);
+
     uint32_t currentId = engine.GetFocusedId();
-    auto info = engine.GetElementInfo(currentId);
+    uint32_t newId     = currentId;
+
+    if(direction == "next")
+    {
+      newId = engine.Navigate(currentId, true);
+    }
+    else if(direction == "prev")
+    {
+      newId = engine.Navigate(currentId, false);
+    }
+
+    engine.SetFocusedId(newId);
+    auto info = engine.GetElementInfo(newId);
+
     std::string json = "{";
-    json += "\"focusedId\":" + std::to_string(currentId);
-    json += ",\"changed\":false";
+    json += "\"focusedId\":" + std::to_string(newId);
+    json += ",\"changed\":" + std::string(newId != currentId ? "true" : "false");
     json += ",\"element\":" + ElementInfoToJson(info);
     json += "}";
     res.set_content(json, "application/json");

@@ -19,6 +19,7 @@
 #include <tools/inspector/direct-query-engine.h>
 
 // EXTERNAL INCLUDES
+#include <algorithm>
 #include <cstdio>
 
 // INTERNAL INCLUDES
@@ -124,6 +125,7 @@ void DirectQueryEngine::TraverseTree(Accessibility::Accessible* node, uint32_t p
   elem.description = node->GetDescription();
   elem.states      = StatesToString(node);
   elem.parentId    = parentId;
+  elem.accessible  = node;
 
   auto extents     = node->GetExtents(Accessibility::CoordinateType::SCREEN);
   elem.boundsX     = extents.x;
@@ -153,22 +155,19 @@ void DirectQueryEngine::TraverseTree(Accessibility::Accessible* node, uint32_t p
 void DirectQueryEngine::BuildSnapshot(Accessibility::Accessible* root)
 {
   mSnapshot.clear();
+  mHighlightableOrder.clear();
   if(!root) return;
 
   mRootId = ExtractId(root);
   TraverseTree(root, 0);
 
-  // Default focused to first highlightable element
-  if(mFocusedId == 0)
+  // Build highlightable order from depth-first traversal
+  BuildHighlightableOrder(mRootId);
+
+  // Default focused to first highlightable element in tree order
+  if(mFocusedId == 0 && !mHighlightableOrder.empty())
   {
-    for(auto& [id, elem] : mSnapshot)
-    {
-      if(elem.states.find("HIGHLIGHTABLE") != std::string::npos)
-      {
-        mFocusedId = id;
-        break;
-      }
-    }
+    mFocusedId = mHighlightableOrder.front();
   }
 }
 
@@ -185,6 +184,25 @@ uint32_t DirectQueryEngine::GetFocusedId() const
 void DirectQueryEngine::SetFocusedId(uint32_t id)
 {
   mFocusedId = id;
+  if(mFocusChangedCallback)
+  {
+    mFocusChangedCallback(id);
+  }
+}
+
+void DirectQueryEngine::SetFocusChangedCallback(std::function<void(uint32_t)> callback)
+{
+  mFocusChangedCallback = std::move(callback);
+}
+
+Accessibility::Accessible* DirectQueryEngine::GetAccessible(uint32_t id) const
+{
+  auto it = mSnapshot.find(id);
+  if(it != mSnapshot.end())
+  {
+    return it->second.accessible;
+  }
+  return nullptr;
 }
 
 ElementInfo DirectQueryEngine::GetElementInfo(uint32_t id)
@@ -242,6 +260,56 @@ TreeNode DirectQueryEngine::BuildTree(uint32_t rootId)
   }
 
   return node;
+}
+
+void DirectQueryEngine::BuildHighlightableOrder(uint32_t nodeId)
+{
+  auto it = mSnapshot.find(nodeId);
+  if(it == mSnapshot.end()) return;
+
+  auto& elem = it->second;
+  if(elem.states.find("HIGHLIGHTABLE") != std::string::npos)
+  {
+    mHighlightableOrder.push_back(nodeId);
+  }
+
+  for(auto childId : elem.childIds)
+  {
+    BuildHighlightableOrder(childId);
+  }
+}
+
+uint32_t DirectQueryEngine::Navigate(uint32_t currentId, bool forward)
+{
+  if(mHighlightableOrder.empty()) return currentId;
+
+  // Find current position in highlightable order
+  auto it = std::find(mHighlightableOrder.begin(), mHighlightableOrder.end(), currentId);
+
+  if(it == mHighlightableOrder.end())
+  {
+    // Current element not highlightable — go to first
+    return mHighlightableOrder.front();
+  }
+
+  if(forward)
+  {
+    ++it;
+    if(it == mHighlightableOrder.end())
+    {
+      it = mHighlightableOrder.begin(); // wrap around
+    }
+  }
+  else
+  {
+    if(it == mHighlightableOrder.begin())
+    {
+      it = mHighlightableOrder.end(); // wrap around
+    }
+    --it;
+  }
+
+  return *it;
 }
 
 } // namespace InspectorEngine
