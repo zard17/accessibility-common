@@ -131,6 +131,48 @@ Open `http://localhost:8080` in a browser. The interface provides:
 | `/api/element/:id` | GET | Element details |
 | `/api/navigate` | POST | Navigate: `{"direction": "next\|prev\|child\|parent"}` |
 
+## Running the Direct Web Inspector (No D-Bus)
+
+The direct web inspector uses `DirectQueryEngine` to query `Accessible*` objects directly via their C++ interface — no D-Bus, no MockDBusWrapper. Works on any platform.
+
+```bash
+cd build/tizen && mkdir -p build && cd build
+
+# Build with direct web inspector
+cmake .. -DENABLE_ATSPI=ON -DBUILD_WEB_INSPECTOR_DIRECT=ON -DENABLE_PKG_CONFIGURE=OFF
+make -j$(nproc)
+
+# Run
+./accessibility-web-inspector-direct
+```
+
+Same web UI as the original web inspector at `http://localhost:8080`.
+
+## Embeddable Inspector Library
+
+A static library (`libaccessibility-inspector.a`) that can be linked into any DALi app to add a web inspector endpoint.
+
+```bash
+# Build and install the library
+cmake .. -DENABLE_ATSPI=ON -DBUILD_INSPECTOR_LIB=ON -DENABLE_PKG_CONFIGURE=OFF \
+  -DCMAKE_INSTALL_PREFIX=$DESKTOP_PREFIX -DLIB_DIR=$DESKTOP_PREFIX/lib -DINCLUDE_DIR=$DESKTOP_PREFIX/include
+make -j$(nproc) && make install
+```
+
+Usage in app code:
+```cpp
+#include <tools/inspector/direct-query-engine.h>
+#include <tools/inspector/web-inspector-server.h>
+
+InspectorEngine::DirectQueryEngine engine;
+engine.BuildSnapshot(rootAccessible);  // main thread
+
+InspectorEngine::WebInspectorServer server;
+server.Start(engine, 8080);  // background thread
+// ...
+server.Stop();
+```
+
 ## Key Design Patterns
 
 - **IPC abstraction layer**: Bridge modules use `Ipc::Server` / `Ipc::Client` / `Ipc::InterfaceDescription` interfaces. D-Bus is the first backend (`Ipc::DbusIpcServer`, `Ipc::DbusIpcClient`). `Ipc::ValueOrError<T>` is protocol-neutral; `DBus::ValueOrError<T>` is a backward-compat alias. Signal emission uses `mIpcServer->emitSignal()` with `Ipc::SignalVariant` payloads.
@@ -151,8 +193,12 @@ Open `http://localhost:8080` in a browser. The interface provides:
 - `bridge-impl.cpp` - Bridge lifecycle: `Initialize()`, `ForceUp()`, `ForceDown()`, `SwitchBridge()`.
 - `bridge-base.cpp` - `FindCurrentObject()`, `ApplicationAccessible`, interface registration helpers.
 - `accessibility-common.h` - D-Bus signature specializations for `Address`, `Accessible*`, `States`.
-- `tools/inspector/query-engine.h` - Reusable `InspectorEngine::AccessibilityQueryEngine` class for querying the accessible tree.
-- `tools/inspector/web-inspector.cpp` - Web-based inspector HTTP server with REST API.
+- `tools/inspector/inspector-types.h` - Shared `ElementInfo` and `TreeNode` structs used by all inspector engines.
+- `tools/inspector/query-engine.h` - `InspectorEngine::AccessibilityQueryEngine` class (D-Bus-based tree queries).
+- `tools/inspector/direct-query-engine.h` - `InspectorEngine::DirectQueryEngine` class (direct C++ Accessible* queries, no D-Bus).
+- `tools/inspector/web-inspector-server.h` - `InspectorEngine::WebInspectorServer` embeddable HTTP server (PIMPL, background thread).
+- `tools/inspector/web-inspector.cpp` - Original web-based inspector HTTP server with REST API.
+- `tools/inspector/web-inspector-direct-main.cpp` - Standalone direct inspector binary (TestAccessible demo tree).
 - `third-party/cpp-httplib/httplib.h` - Vendored cpp-httplib v0.18.3 (MIT, single-header HTTP server).
 
 ## Rules

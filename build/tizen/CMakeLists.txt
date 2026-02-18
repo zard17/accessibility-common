@@ -228,13 +228,67 @@ IF( BUILD_WEB_INSPECTOR )
   TARGET_LINK_LIBRARIES( accessibility-web-inspector Threads::Threads )
 ENDIF()
 
+# Embeddable Inspector Library (static lib for use by external apps)
+OPTION( BUILD_INSPECTOR_LIB "Build embeddable inspector library" OFF )
+IF( BUILD_INSPECTOR_LIB )
+  FIND_PACKAGE( Threads REQUIRED )
+  ADD_LIBRARY( accessibility-inspector STATIC
+    ${accessibility_common_root}/tools/inspector/direct-query-engine.cpp
+    ${accessibility_common_root}/tools/inspector/web-inspector-server.cpp
+  )
+  TARGET_INCLUDE_DIRECTORIES( accessibility-inspector PUBLIC
+    ${accessibility_common_root}
+    ${accessibility_common_root}/third-party
+  )
+  TARGET_LINK_LIBRARIES( accessibility-inspector ${name} Threads::Threads )
+  INSTALL( TARGETS accessibility-inspector DESTINATION ${LIB_DIR} )
+
+  # Install inspector headers for consumers
+  SET( inspectorincdir ${DEV_INCLUDE_PATH}/tools/inspector )
+  INSTALL( FILES
+    ${accessibility_common_root}/tools/inspector/inspector-types.h
+    ${accessibility_common_root}/tools/inspector/direct-query-engine.h
+    ${accessibility_common_root}/tools/inspector/web-inspector-server.h
+    ${accessibility_common_root}/tools/inspector/web-inspector-resources.h
+    DESTINATION ${inspectorincdir} )
+  INSTALL( FILES ${accessibility_common_root}/third-party/cpp-httplib/httplib.h
+    DESTINATION ${DEV_INCLUDE_PATH}/cpp-httplib )
+ENDIF()
+
+# Direct Web Inspector (standalone binary using DirectQueryEngine)
+OPTION( BUILD_WEB_INSPECTOR_DIRECT "Build direct web inspector (no D-Bus)" OFF )
+IF( BUILD_WEB_INSPECTOR_DIRECT )
+  SET( DIRECT_INSPECTOR_BRIDGE_SOURCES
+    ${accessibility_common_atspi_bridge_src_files}
+    ${accessibility_common_dbus_stub_src_files}
+    ${accessibility_common_api_src_files}
+    ${accessibility_common_internal_dir}/bridge/bridge-platform.cpp
+  )
+  ADD_EXECUTABLE( accessibility-web-inspector-direct
+    ${DIRECT_INSPECTOR_BRIDGE_SOURCES}
+    ${accessibility_common_root}/test/mock/mock-dbus-wrapper.cpp
+    ${accessibility_common_root}/test/test-accessible.cpp
+    ${accessibility_common_root}/tools/inspector/direct-query-engine.cpp
+    ${accessibility_common_root}/tools/inspector/web-inspector-server.cpp
+    ${accessibility_common_root}/tools/inspector/web-inspector-direct-main.cpp
+  )
+  TARGET_INCLUDE_DIRECTORIES( accessibility-web-inspector-direct PRIVATE
+    ${accessibility_common_root}
+    ${accessibility_common_root}/third-party
+  )
+  FIND_PACKAGE( Threads REQUIRED )
+  TARGET_LINK_LIBRARIES( accessibility-web-inspector-direct Threads::Threads )
+ENDIF()
+
 MESSAGE( STATUS "" )
 MESSAGE( STATUS "Configuration:" )
-MESSAGE( STATUS "  Prefix:              ${PREFIX}" )
-MESSAGE( STATUS "  Enable AT-SPI:       ${ENABLE_ATSPI}" )
-MESSAGE( STATUS "  Enable Debug:        ${ENABLE_DEBUG}" )
-MESSAGE( STATUS "  Enable Coverage:     ${ENABLE_COVERAGE}" )
-MESSAGE( STATUS "  Build Tests:         ${BUILD_TESTS}" )
-MESSAGE( STATUS "  Build Inspector:     ${BUILD_INSPECTOR}" )
-MESSAGE( STATUS "  Build Web Inspector: ${BUILD_WEB_INSPECTOR}" )
+MESSAGE( STATUS "  Prefix:                   ${PREFIX}" )
+MESSAGE( STATUS "  Enable AT-SPI:            ${ENABLE_ATSPI}" )
+MESSAGE( STATUS "  Enable Debug:             ${ENABLE_DEBUG}" )
+MESSAGE( STATUS "  Enable Coverage:          ${ENABLE_COVERAGE}" )
+MESSAGE( STATUS "  Build Tests:              ${BUILD_TESTS}" )
+MESSAGE( STATUS "  Build Inspector:          ${BUILD_INSPECTOR}" )
+MESSAGE( STATUS "  Build Web Inspector:      ${BUILD_WEB_INSPECTOR}" )
+MESSAGE( STATUS "  Build Inspector Lib:      ${BUILD_INSPECTOR_LIB}" )
+MESSAGE( STATUS "  Build Direct Inspector:   ${BUILD_WEB_INSPECTOR_DIRECT}" )
 MESSAGE( STATUS "" )

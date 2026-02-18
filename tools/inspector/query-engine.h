@@ -28,39 +28,10 @@
 #include <accessibility/api/accessibility-bridge.h>
 #include <accessibility/internal/bridge/dbus/dbus.h>
 #include <test/test-accessible.h>
+#include <tools/inspector/inspector-types.h>
 
 namespace InspectorEngine
 {
-/**
- * @brief Information about an accessible element.
- */
-struct ElementInfo
-{
-  uint32_t    id;
-  std::string name;
-  std::string role;
-  std::string description;
-  std::string states;
-  float       boundsX;
-  float       boundsY;
-  float       boundsWidth;
-  float       boundsHeight;
-  int         childCount;
-  std::vector<uint32_t> childIds;
-  uint32_t    parentId;
-};
-
-/**
- * @brief A node in the accessibility tree.
- */
-struct TreeNode
-{
-  uint32_t    id;
-  std::string name;
-  std::string role;
-  int         childCount;
-  std::vector<TreeNode> children;
-};
 
 /**
  * @brief Engine that initializes the accessibility bridge and provides
