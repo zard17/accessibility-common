@@ -191,7 +191,7 @@ public:
 
     static const char* methodName = "NotifyListenersSync";
 
-    if(!IsUp())
+    if(!IsUp() || !mIpcServer)
     {
       return false;
     }
@@ -228,7 +228,7 @@ public:
    */
   void Pause() override
   {
-    if(!IsUp())
+    if(!IsUp() || !mIpcServer)
     {
       return;
     }
@@ -247,7 +247,7 @@ public:
    */
   void Resume() override
   {
-    if(!IsUp())
+    if(!IsUp() || !mIpcServer)
     {
       return;
     }
@@ -266,7 +266,7 @@ public:
    */
   void StopReading(bool alsoNonDiscardable) override
   {
-    if(!IsUp())
+    if(!IsUp() || !mIpcServer)
     {
       return;
     }
@@ -285,7 +285,7 @@ public:
    */
   void Say(const std::string& text, bool discardable, std::function<void(std::string)> callback) override
   {
-    if(!IsUp())
+    if(!IsUp() || !mIpcServer)
     {
       return;
     }
@@ -313,8 +313,12 @@ public:
       mData->mCurrentlyHighlightedAccessible = nullptr;
 
       mDisabledSignal.Emit();
-      UnembedSocket(mApplication->GetAddress(), {AtspiDbusNameRegistry, "root"});
-      ReleaseBusName(mPreferredBusName);
+
+      if(mIpcServer)
+      {
+        UnembedSocket(mApplication->GetAddress(), {AtspiDbusNameRegistry, "root"});
+        ReleaseBusName(mPreferredBusName);
+      }
     }
 
     BridgeAccessible::ForceDown();
@@ -402,43 +406,48 @@ public:
       return forceUpResult;
     }
 
-    BridgeObject::RegisterInterfaces();
-    BridgeAccessible::RegisterInterfaces();
-    BridgeComponent::RegisterInterfaces();
-    BridgeCollection::RegisterInterfaces();
-    BridgeAction::RegisterInterfaces();
-    BridgeValue::RegisterInterfaces();
-    BridgeText::RegisterInterfaces();
-    BridgeEditableText::RegisterInterfaces();
-    BridgeSelection::RegisterInterfaces();
-    BridgeApplication::RegisterInterfaces();
-    BridgeHypertext::RegisterInterfaces();
-    BridgeHyperlink::RegisterInterfaces();
-    BridgeSocket::RegisterInterfaces();
-
-    mRegistryClient      = {AtspiDbusNameRegistry, AtspiDbusPathDec, Accessible::GetInterfaceName(AtspiInterface::DEVICE_EVENT_CONTROLLER), getConnection()};
-    mDirectReadingClient = DBus::DBusClient{DirectReadingDBusName, DirectReadingDBusPath, DirectReadingDBusInterface, getConnection()};
-
-    mDirectReadingClient.addSignal<void(int32_t, std::string)>("ReadingStateChanged", [=](int32_t id, std::string readingState)
+    // IPC-dependent setup: only when transport is available
+    if(mIpcServer)
     {
-      auto it = mDirectReadingCallbacks.find(id);
-      if(it != mDirectReadingCallbacks.end())
+      BridgeObject::RegisterInterfaces();
+      BridgeAccessible::RegisterInterfaces();
+      BridgeComponent::RegisterInterfaces();
+      BridgeCollection::RegisterInterfaces();
+      BridgeAction::RegisterInterfaces();
+      BridgeValue::RegisterInterfaces();
+      BridgeText::RegisterInterfaces();
+      BridgeEditableText::RegisterInterfaces();
+      BridgeSelection::RegisterInterfaces();
+      BridgeApplication::RegisterInterfaces();
+      BridgeHypertext::RegisterInterfaces();
+      BridgeHyperlink::RegisterInterfaces();
+      BridgeSocket::RegisterInterfaces();
+
+      mRegistryClient      = {AtspiDbusNameRegistry, AtspiDbusPathDec, Accessible::GetInterfaceName(AtspiInterface::DEVICE_EVENT_CONTROLLER), getConnection()};
+      mDirectReadingClient = DBus::DBusClient{DirectReadingDBusName, DirectReadingDBusPath, DirectReadingDBusInterface, getConnection()};
+
+      mDirectReadingClient.addSignal<void(int32_t, std::string)>("ReadingStateChanged", [=](int32_t id, std::string readingState)
       {
-        it->second(readingState);
-        if(readingState != "ReadingPaused" && readingState != "ReadingResumed" && readingState != "ReadingStarted")
+        auto it = mDirectReadingCallbacks.find(id);
+        if(it != mDirectReadingCallbacks.end())
         {
-          mDirectReadingCallbacks.erase(it);
+          it->second(readingState);
+          if(readingState != "ReadingPaused" && readingState != "ReadingResumed" && readingState != "ReadingStarted")
+          {
+            mDirectReadingCallbacks.erase(it);
+          }
         }
+      });
+
+      RequestBusName(mPreferredBusName);
+
+      auto parentAddress = EmbedSocket(mApplication->GetAddress(), {AtspiDbusNameRegistry, "root"});
+      if(auto proxyAccessible = dynamic_cast<ProxyAccessible*>(mApplication->GetParent()))
+      {
+        proxyAccessible->SetAddress(std::move(parentAddress));
       }
-    });
-
-    RequestBusName(mPreferredBusName);
-
-    auto parentAddress = EmbedSocket(mApplication->GetAddress(), {AtspiDbusNameRegistry, "root"});
-    if(auto proxyAccessible = dynamic_cast<ProxyAccessible*>(mApplication->GetParent()))
-    {
-      proxyAccessible->SetAddress(std::move(parentAddress));
     }
+
     mEnabledSignal.Emit();
 
     return ForceUpResult::JUST_STARTED;
@@ -868,6 +877,15 @@ public:
       return;
     }
 
+    // No IPC transport — enable accessibility locally
+    if(!DBusWrapper::Installed())
+    {
+      mIsEnabled            = true;
+      mIsApplicationRunning = true;
+      SwitchBridge();
+      return;
+    }
+
     // Initialize failed. Try it again on Idle
     auto& platformCallbacks = Accessibility::GetPlatformCallbacks();
     if(platformCallbacks.isAdaptorAvailable && platformCallbacks.isAdaptorAvailable())
@@ -905,6 +923,8 @@ public:
 
   Address EmbedSocket(const Address& plug, const Address& socket) override
   {
+    if(!mIpcServer) return {};
+
     auto client = CreateSocketClient(socket);
     auto reply  = client.method<Address(Address)>("Embed").call(plug);
 
@@ -919,6 +939,8 @@ public:
 
   void UnembedSocket(const Address& plug, const Address& socket) override
   {
+    if(!mIpcServer) return;
+
     auto client = CreateSocketClient(socket);
 
     client.method<void(Address)>("Unembed").asyncCall([](DBus::ValueOrError<void>) {}, plug);
@@ -926,6 +948,8 @@ public:
 
   void SetSocketOffset(ProxyAccessible* socket, std::int32_t x, std::int32_t y) override
   {
+    if(!mIpcServer) return;
+
     AddCoalescableMessage(CoalescableMessages::SET_OFFSET, socket, 1.0f, [=]()
     {
       auto client = CreateSocketClient(socket->GetAddress());
@@ -952,7 +976,7 @@ public:
     std::string oldPreferredBusName = std::move(mPreferredBusName);
     mPreferredBusName               = std::string{preferredBusName};
 
-    if(IsUp())
+    if(IsUp() && mIpcServer)
     {
       ReleaseBusName(oldPreferredBusName);
       RequestBusName(mPreferredBusName);

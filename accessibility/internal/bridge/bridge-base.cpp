@@ -396,8 +396,8 @@ BridgeBase::ForceUpResult BridgeBase::ForceUp()
 
   if(!DBusWrapper::Installed())
   {
-    ACCESSIBILITY_LOG_ERROR("DBusWrapper not installed, cannot start bridge");
-    return ForceUpResult::FAILED;
+    // No IPC transport. Bridge is up for local accessibility.
+    return ForceUpResult::JUST_STARTED;
   }
 
   auto proxy = DBus::DBusClient{dbusLocators::atspi::BUS, dbusLocators::atspi::OBJ_PATH, dbusLocators::atspi::BUS_INTERFACE, DBus::ConnectionType::SESSION};

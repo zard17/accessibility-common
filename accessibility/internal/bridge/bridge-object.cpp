@@ -55,6 +55,8 @@ void BridgeObject::EmitActiveDescendantChanged(Accessible* obj, Accessible* chil
     return;
   }
 
+  if(!mIpcServer) return;
+
   auto index = child->GetIndexInParent();
 
   mIpcServer->emitSignal(
@@ -91,6 +93,7 @@ void BridgeObject::Emit(std::shared_ptr<Accessible> obj, ObjectPropertyChangeEve
     {
       if(auto accessible = weakObj.lock())
       {
+        if(!mIpcServer) return;
         mIpcServer->emitSignal(
           GetAccessiblePath(accessible.get()),
           Accessible::GetInterfaceName(AtspiInterface::EVENT_OBJECT),
@@ -134,6 +137,8 @@ void BridgeObject::Emit(Accessible* obj, WindowEvent event, unsigned int detail)
   {
     return;
   }
+
+  if(!mIpcServer) return;
 
   auto eventName = eventMap.find(event);
 
@@ -215,6 +220,7 @@ void BridgeObject::EmitStateChanged(std::shared_ptr<Accessible> obj, State state
     {
       if(auto accessible = weakObj.lock())
       {
+        if(!mIpcServer) return;
         mIpcServer->emitSignal(
           GetAccessiblePath(accessible.get()),
           Accessible::GetInterfaceName(AtspiInterface::EVENT_OBJECT),
@@ -240,6 +246,7 @@ void BridgeObject::EmitBoundsChanged(std::shared_ptr<Accessible> obj, Rect<int> 
   {
     if(auto accessible = weakObj.lock())
     {
+      if(!mIpcServer) return;
       mIpcServer->emitSignal(
         GetAccessiblePath(accessible.get()),
         Accessible::GetInterfaceName(AtspiInterface::EVENT_OBJECT),
@@ -276,6 +283,8 @@ void BridgeObject::EmitCursorMoved(Accessible* obj, unsigned int cursorPosition)
     return;
   }
 
+  if(!mIpcServer) return;
+
   mIpcServer->emitSignal(
     GetAccessiblePath(obj),
     Accessible::GetInterfaceName(AtspiInterface::EVENT_OBJECT),
@@ -298,6 +307,8 @@ void BridgeObject::EmitTextChanged(Accessible* obj, TextChangedState state, unsi
   {
     return;
   }
+
+  if(!mIpcServer) return;
 
   auto stateName = stateMap.find(state);
 
@@ -322,6 +333,8 @@ void BridgeObject::EmitMovedOutOfScreen(Accessible* obj, ScreenRelativeMoveType 
     return;
   }
 
+  if(!mIpcServer) return;
+
   mIpcServer->emitSignal(
     GetAccessiblePath(obj),
     Accessible::GetInterfaceName(AtspiInterface::EVENT_OBJECT),
@@ -340,6 +353,8 @@ void BridgeObject::EmitScrollStarted(Accessible* obj)
     return;
   }
 
+  if(!mIpcServer) return;
+
   mIpcServer->emitSignal(
     GetAccessiblePath(obj),
     Accessible::GetInterfaceName(AtspiInterface::EVENT_OBJECT),
@@ -357,6 +372,8 @@ void BridgeObject::EmitScrollFinished(Accessible* obj)
   {
     return;
   }
+
+  if(!mIpcServer) return;
 
   mIpcServer->emitSignal(
     GetAccessiblePath(obj),

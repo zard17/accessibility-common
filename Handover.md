@@ -1,85 +1,49 @@
-# Handover: Phase 5 (Toolkit Integration) Complete
+# Handover: Phase 7 — Bridge Lifecycle Decoupling from IPC Transport
 
 ## What was done
 
-### Phase 5a: accessibility-common preparation
-- Verified library installs correctly (headers + shared lib)
-- Added `ACCESSIBILITY_API` to `CollectionImpl` for symbol export
-- Created `dali2-accessibility-common.pc` pkg-config file
+### Bridge lifecycle decoupling (accessibility-common)
+Decoupled Bridge's `IsUp()` from D-Bus connection so accessibility works on platforms without D-Bus (macOS, Windows).
 
-### Phase 5b: dali-adaptor integration
-- Replaced all atspi-interface headers (13 files) with forwarding headers (`using ::Accessibility::TypeName`)
-- Replaced `accessibility.h`, `accessibility-bridge.h`, `accessibility-bitset.h` with forwarding headers
-- Moved Actor-specific static methods to `ActorAccessible` (`Get`, `GetOwningPtr`, highlight management)
-- Added `GetWindowAccessible(Window)` and `ConvertKeyEvent(KeyEvent)` helpers
-- Wired `PlatformCallbacks` in `adaptor-impl.cpp` (addIdle, removeIdle, timers)
-- Updated `window-impl.cpp` to use `Accessibility::Rect<int>` for `EmitBoundsChanged`
-- Deleted all bridge code from `dali/internal/accessibility/bridge/` (~15,500 lines removed)
-- Added `FIND_LIBRARY` for accessibility-common in CMakeLists.txt
-- Added `dali2-accessibility-common` as a dependency in `dali2-adaptor.pc.in`
+**Problem**: On macOS, `IsUp()` returned false because no D-Bus connection existed. This caused `GrabHighlight()` to be rejected, preventing highlight rendering.
 
-### Phase 5c: dali-toolkit adaptation
-- Mechanical rename: `Accessible::Get(actor)` → `ActorAccessible::Get(actor)` (~60 occurrences, 12 files)
-- Fixed `Dali::Rect<float>` → `Accessibility::Rect<float>` for `GetShowingGeometry`, `IsShowingGeometryOnScreen`, `GetRangeExtents`
-- Fixed `Signal.Connect(this, &Method)` → `Signal.Connect([this]() { Method(); })` (4 files: text-editor, text-field, text-label, web-view)
-- Fixed `bridge->GetAccessible(Actor)` → `ActorAccessible::Get(Actor)` in `control-data-impl.cpp`
+**Solution** (3 files changed in accessibility-common):
 
-### Avoiding unnecessary Accessible creation
-- `IsAccessibleCreated()` now uses `bridge->GetAccessible(actorId)` (lookup-only, no creation)
-- Added `RegisterDefaultLabel(Bridge*, Actor)` / `UnregisterDefaultLabel(Bridge*, Actor)` convenience functions in dali-adaptor that do lookup-only via `bridge->GetAccessible(actorId)`
-- `EmitAccessibilityStateChanged` uses these convenience functions instead of `ActorAccessible::Get()`
+#### `bridge-impl.cpp`
+- `Initialize()`: When `DBusWrapper::Installed()` returns null, sets `mIsEnabled = true` and `mIsApplicationRunning = true`, then calls `SwitchBridge()` to bring the bridge up locally
+- `ForceUp()`: Wrapped all IPC-dependent code (interface registration, registry/reading clients, bus name, embed socket) in `if(mIpcServer)` guard. `mEnabledSignal.Emit()` stays outside — fires regardless of IPC
+- `ForceDown()`: Wrapped `UnembedSocket`/`ReleaseBusName` in `if(mIpcServer)` guard
+- `EmitKeyEvent/Pause/Resume/StopReading/Say`: Added `|| !mIpcServer` to early-return guards
+- `EmbedSocket/UnembedSocket/SetSocketOffset`: Added `if(!mIpcServer) return` guards
+- `SetPreferredBusName`: Changed `if(IsUp())` to `if(IsUp() && mIpcServer)`
 
-### macOS crash fix
-- `InitializeAccessibilityStatusClient()` and `ForceUp()` crashed on macOS because `DBusWrapper::Installed()` returns nullptr (no eldbus)
-- Added null guards in `bridge-impl.cpp` (`InitializeAccessibilityStatusClient`) and `bridge-base.cpp` (`ForceUp`, `ForceDown`)
-- Bridge gracefully falls back to inactive state instead of crashing
+#### `bridge-base.cpp`
+- `ForceUp()`: When `DBusWrapper::Installed()` returns null, returns `JUST_STARTED` instead of `FAILED`. Bridge is up for local accessibility without IPC.
 
-### Namespace fix (dali-demo)
-- `::Accessibility` namespace leaks into global scope via forwarding headers
-- Files with `using namespace Dali;` see both `Dali::Accessibility` and `::Accessibility` as `Accessibility`
-- Fixed in dali-demo by qualifying as `Dali::Accessibility::`
+#### `bridge-object.cpp`
+- Added `if(!mIpcServer) return;` guard before all 10 `mIpcServer->emitSignal()` call sites (direct calls and inside coalescable message lambdas)
 
-## Commits
+### Web inspector highlight integration (dali-demo)
+- `accessibility-inspector-example.cpp`: Added `TriggerEventFactory`-based cross-thread dispatch so web inspector navigation triggers `GrabHighlight()` on the DALi main thread
+- `Dali::Timer` doesn't tick on macOS — `TriggerEvent` is the correct mechanism for cross-thread dispatch
 
-| Repo | Commit | Description |
-|------|--------|-------------|
-| accessibility-common | `9bbda74` | Export CollectionImpl symbol, install collection header |
-| accessibility-common | `f496820` | Guard DBusWrapper null checks for macOS |
-| dali-adaptor | `63a50aba6` | Phase 5b: full integration (67 files, -15,517 lines) |
-| dali-adaptor | `31cdc2553` | RegisterDefaultLabel convenience functions |
-| dali-toolkit | `0c38079e3` | Phase 5c: ActorAccessible::Get rename (12 files) |
-| dali-toolkit | `d8f0e85d7` | Rect types, Signal.Connect, GetAccessible fixes |
-| dali-toolkit | `9f949f2a0` | Avoid unnecessary Accessible creation |
-| dali-demo | `c8044f25` | Qualify Accessibility namespace |
+## Key findings
+
+- `Dali::Timer` does NOT fire on macOS (created successfully, started, but tick signal never triggers)
+- `TriggerEventFactory::CreateTriggerEvent()` works on macOS for cross-thread main-thread dispatch (uses `trigger-event-mac.h` internally)
+- `SwitchBridge()` requires `mIsApplicationRunning = true` — without it, `ForceDown()` is called which clears `mApplication->mChildren`
+- "ACCESSIBILITY ERROR: No DBusWrapper installed" is logged from `dbus-stub.cpp:204` every time `DBusWrapper::Installed()` is called — pre-existing, harmless on macOS
+- `::Accessibility` namespace ambiguity: use `::Accessibility::IsUp()` (not `Dali::Accessibility::IsUp()`) in files with `using namespace Dali;`
 
 ## Verification
 
-Full build chain passes:
-```
-accessibility-common → dali-core → dali-adaptor → dali-toolkit → dali-demo
-```
 - `accessibility-test`: 31 passed, 0 failed
-- `hello-world.example`: runs, renders, exits cleanly (exit code 0)
-- DBusWrapper warnings on macOS are expected and harmless
-
-## Known Issues
-
-- `::Accessibility` namespace pollution: any file that `#include`s the forwarding headers AND does `using namespace Dali;` must use `Dali::Accessibility::` explicitly. This affects dali-demo and could affect user apps. Consider wrapping accessibility-common includes to avoid leaking `::Accessibility` into global scope.
-- `DBusWrapper::Installed()` logs error on every call when no wrapper is installed (noisy on macOS). Could suppress with a flag after first warning.
-- `ActorAccessible::Get(Actor)` creates Accessible on first call. Several call sites in dali-toolkit rely on this creation behavior. A lookup-only variant would be cleaner (see "Accessible ownership" discussion below).
+- Full stack rebuilt: accessibility-common → dali-core → dali-adaptor → dali-toolkit → dali-demo
+- `accessibility-inspector.example`: correct DALi tree in web inspector, highlight renders on navigation
 
 ## What's next
 
-### Option A: E2E accessibility test with web inspector
-Create or find a dali-demo example with buttons/labels/sliders, connect accessibility-common's web inspector to the live DALi tree, and verify the full pipeline: DALi Actor → ControlAccessible → Bridge → Web Inspector display. This proves Phase 5 works beyond just compiling.
-
-### Option B: Rethink Accessible::Get and ownership
-`ActorAccessible::Get(Actor)` is convenient but conflates lookup and creation. Accessible objects are currently owned by dali-adaptor (stored in Bridge's map by actor ID), but the Bridge and tree logic live in accessibility-common. Moving ownership into accessibility-common would clean up the architecture:
-- `Bridge::GetAccessible(id)` for lookup
-- `Bridge::AddAccessible(id, ptr)` for registration
-- `ActorAccessible::Get(Actor)` remains as a dali-adaptor convenience that wraps lookup+create
-- A `FindAccessible(Actor)` for lookup-only would prevent accidental creation
-
-### Option C: From PLAN.md
 - Phase 4e: macOS NSAccessibility backend (VoiceOver integration)
 - Phase 4f: TIDL IPC backend
+- Suppress noisy "No DBusWrapper installed" warnings (log once, then silence)
+- Fix `Dali::Timer` on macOS (or document that TriggerEvent should be used instead)
