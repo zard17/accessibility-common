@@ -81,6 +81,30 @@ static DBus::DBusClient CreateComponentClient(const std::string& busName, uint32
     conn};
 }
 
+/**
+ * @brief Creates a DBusClient pointing to the root (ApplicationAccessible) with the Socket interface.
+ */
+static DBus::DBusClient CreateSocketClient(const std::string& busName, const DBusWrapper::ConnectionPtr& conn)
+{
+  return DBus::DBusClient{
+    busName,
+    std::string{ATSPI_PREFIX_PATH} + "root",
+    Accessibility::Accessible::GetInterfaceName(Accessibility::AtspiInterface::SOCKET),
+    conn};
+}
+
+/**
+ * @brief Creates a DBusClient pointing to the root with the Accessible interface.
+ */
+static DBus::DBusClient CreateRootAccessibleClient(const std::string& busName, const DBusWrapper::ConnectionPtr& conn)
+{
+  return DBus::DBusClient{
+    busName,
+    std::string{ATSPI_PREFIX_PATH} + "root",
+    Accessibility::Accessible::GetInterfaceName(Accessibility::AtspiInterface::ACCESSIBLE),
+    conn};
+}
+
 int main(int argc, char** argv)
 {
   std::cout << "=== Accessibility Mock D-Bus Test ===" << std::endl;
@@ -343,6 +367,174 @@ int main(int argc, char** argv)
       TEST_CHECK(address.GetPath() == std::to_string(button->GetId()),
                  "Child address path is button ID (" + address.GetPath() + ")");
     }
+  }
+
+  // ===== Step 13: Server-side Socket Embed/Unembed =====
+  std::cout << "\n[13] Testing Socket Embed/Unembed..." << std::endl;
+  {
+    // A1: Embed sets embedded state — GetIndexInParent returns 0
+    auto socketClient = CreateSocketClient(busName, conn);
+    Accessibility::Address plugAddr{"plug.bus.A", "plug_a"};
+    auto embedResult = socketClient.method<DBus::ValueOrError<Accessibility::Address>(Accessibility::Address)>("Embed").call(plugAddr);
+    TEST_CHECK(!!embedResult, "A1: Embed call succeeds");
+    if(embedResult)
+    {
+      auto rootClient = CreateRootAccessibleClient(busName, conn);
+      auto idxResult = rootClient.method<DBus::ValueOrError<int32_t>()>("GetIndexInParent").call();
+      TEST_CHECK(!!idxResult, "A1: GetIndexInParent call succeeds after Embed");
+      if(idxResult)
+      {
+        int32_t idx = std::get<0>(idxResult.getValues());
+        TEST_CHECK(idx == 0, "A1: GetIndexInParent returns 0 after Embed (got " + std::to_string(idx) + ")");
+      }
+    }
+
+    // A2: Embed returns application root address with path "root"
+    TEST_CHECK(!!embedResult, "A2: Embed result is valid");
+    if(embedResult)
+    {
+      auto addr = std::get<0>(embedResult.getValues());
+      TEST_CHECK(addr.GetPath() == "root", "A2: Embed result path is 'root' (got '" + addr.GetPath() + "')");
+    }
+
+    // A3: Unembed resets state — GetIndexInParent throws (returns error)
+    auto unembedResult = socketClient.method<DBus::ValueOrError<void>(Accessibility::Address)>("Unembed").call(plugAddr);
+    TEST_CHECK(!!unembedResult, "A3: Unembed call succeeds");
+    {
+      auto rootClient = CreateRootAccessibleClient(busName, conn);
+      auto idxResult = rootClient.method<DBus::ValueOrError<int32_t>()>("GetIndexInParent").call();
+      TEST_CHECK(!idxResult, "A3: GetIndexInParent returns error after Unembed");
+    }
+
+    // A4: Unembed with wrong plug is no-op
+    // Re-embed with plugA
+    socketClient.method<DBus::ValueOrError<Accessibility::Address>(Accessibility::Address)>("Embed").call(plugAddr);
+    // Unembed with a different address (plugB)
+    Accessibility::Address plugAddrB{"plug.bus.B", "plug_b"};
+    socketClient.method<DBus::ValueOrError<void>(Accessibility::Address)>("Unembed").call(plugAddrB);
+    {
+      auto rootClient = CreateRootAccessibleClient(busName, conn);
+      auto idxResult = rootClient.method<DBus::ValueOrError<int32_t>()>("GetIndexInParent").call();
+      TEST_CHECK(!!idxResult, "A4: GetIndexInParent still succeeds after Unembed with wrong plug");
+      if(idxResult)
+      {
+        int32_t idx = std::get<0>(idxResult.getValues());
+        TEST_CHECK(idx == 0, "A4: Still embedded (index 0) after Unembed with wrong plug (got " + std::to_string(idx) + ")");
+      }
+    }
+    // Cleanup: unembed with the correct plug
+    socketClient.method<DBus::ValueOrError<void>(Accessibility::Address)>("Unembed").call(plugAddr);
+  }
+
+  // ===== Step 14: SetOffset + Extents verification =====
+  std::cout << "\n[14] Testing SetOffset + Extents..." << std::endl;
+  {
+    auto socketClient = CreateSocketClient(busName, conn);
+    Accessibility::Address plugAddr{"plug.bus.offset", "plug_offset"};
+
+    // A5: SetOffset applies to GetExtents
+    socketClient.method<DBus::ValueOrError<Accessibility::Address>(Accessibility::Address)>("Embed").call(plugAddr);
+    socketClient.method<DBus::ValueOrError<void>(std::int32_t, std::int32_t)>("SetOffset").call(100, 200);
+    {
+      auto compClient = CreateComponentClient(busName, button->GetId(), conn);
+      auto extResult = compClient.method<DBus::ValueOrError<std::tuple<int32_t, int32_t, int32_t, int32_t>>(uint32_t)>("GetExtents").call(static_cast<uint32_t>(Accessibility::CoordinateType::SCREEN));
+      TEST_CHECK(!!extResult, "A5: GetExtents call succeeds after SetOffset");
+      if(extResult)
+      {
+        auto extents = std::get<0>(extResult.getValues());
+        auto x = std::get<0>(extents);
+        auto y = std::get<1>(extents);
+        auto w = std::get<2>(extents);
+        auto h = std::get<3>(extents);
+        TEST_CHECK(x == 110, "A5: Button x shifted by 100 (got " + std::to_string(x) + ")");
+        TEST_CHECK(y == 220, "A5: Button y shifted by 200 (got " + std::to_string(y) + ")");
+        TEST_CHECK(w == 200, "A5: Button width unchanged (got " + std::to_string(w) + ")");
+        TEST_CHECK(h == 50, "A5: Button height unchanged (got " + std::to_string(h) + ")");
+      }
+    }
+    // Cleanup
+    socketClient.method<DBus::ValueOrError<void>(Accessibility::Address)>("Unembed").call(plugAddr);
+
+    // A6: SetOffset is no-op when not embedded
+    socketClient.method<DBus::ValueOrError<void>(std::int32_t, std::int32_t)>("SetOffset").call(100, 200);
+    {
+      auto compClient = CreateComponentClient(busName, button->GetId(), conn);
+      auto extResult = compClient.method<DBus::ValueOrError<std::tuple<int32_t, int32_t, int32_t, int32_t>>(uint32_t)>("GetExtents").call(static_cast<uint32_t>(Accessibility::CoordinateType::SCREEN));
+      TEST_CHECK(!!extResult, "A6: GetExtents call succeeds");
+      if(extResult)
+      {
+        auto extents = std::get<0>(extResult.getValues());
+        auto x = std::get<0>(extents);
+        auto y = std::get<1>(extents);
+        TEST_CHECK(x == 10, "A6: Button x unchanged when not embedded (got " + std::to_string(x) + ")");
+        TEST_CHECK(y == 20, "A6: Button y unchanged when not embedded (got " + std::to_string(y) + ")");
+      }
+    }
+
+    // A7: SetOffset resets after Unembed
+    socketClient.method<DBus::ValueOrError<Accessibility::Address>(Accessibility::Address)>("Embed").call(plugAddr);
+    socketClient.method<DBus::ValueOrError<void>(std::int32_t, std::int32_t)>("SetOffset").call(100, 200);
+    socketClient.method<DBus::ValueOrError<void>(Accessibility::Address)>("Unembed").call(plugAddr);
+    {
+      auto compClient = CreateComponentClient(busName, button->GetId(), conn);
+      auto extResult = compClient.method<DBus::ValueOrError<std::tuple<int32_t, int32_t, int32_t, int32_t>>(uint32_t)>("GetExtents").call(static_cast<uint32_t>(Accessibility::CoordinateType::SCREEN));
+      TEST_CHECK(!!extResult, "A7: GetExtents call succeeds after Unembed");
+      if(extResult)
+      {
+        auto extents = std::get<0>(extResult.getValues());
+        auto x = std::get<0>(extents);
+        auto y = std::get<1>(extents);
+        TEST_CHECK(x == 10, "A7: Button x back to original after Unembed (got " + std::to_string(x) + ")");
+        TEST_CHECK(y == 20, "A7: Button y back to original after Unembed (got " + std::to_string(y) + ")");
+      }
+    }
+  }
+
+  // ===== Step 15: Edge Cases =====
+  std::cout << "\n[15] Testing Edge Cases..." << std::endl;
+  {
+    auto socketClient = CreateSocketClient(busName, conn);
+
+    // C1: Double-embed overwrites parent
+    Accessibility::Address plugA{"plug.bus.A", "plug_a"};
+    Accessibility::Address plugB{"plug.bus.B", "plug_b"};
+    socketClient.method<DBus::ValueOrError<Accessibility::Address>(Accessibility::Address)>("Embed").call(plugA);
+    socketClient.method<DBus::ValueOrError<Accessibility::Address>(Accessibility::Address)>("Embed").call(plugB);
+    // Unembed with A (old plug) should be no-op because parent is now B
+    socketClient.method<DBus::ValueOrError<void>(Accessibility::Address)>("Unembed").call(plugA);
+    {
+      auto rootClient = CreateRootAccessibleClient(busName, conn);
+      auto idxResult = rootClient.method<DBus::ValueOrError<int32_t>()>("GetIndexInParent").call();
+      TEST_CHECK(!!idxResult, "C1: Still embedded after Unembed(A) when parent is B");
+      if(idxResult)
+      {
+        int32_t idx = std::get<0>(idxResult.getValues());
+        TEST_CHECK(idx == 0, "C1: GetIndexInParent returns 0 (got " + std::to_string(idx) + ")");
+      }
+    }
+    // Cleanup: unembed with the correct plug (B)
+    socketClient.method<DBus::ValueOrError<void>(Accessibility::Address)>("Unembed").call(plugB);
+
+    // C2: Embed-Unembed-Embed cycle works
+    Accessibility::Address plugC{"plug.bus.C", "plug_c"};
+    Accessibility::Address plugD{"plug.bus.D", "plug_d"};
+    socketClient.method<DBus::ValueOrError<Accessibility::Address>(Accessibility::Address)>("Embed").call(plugC);
+    socketClient.method<DBus::ValueOrError<void>(Accessibility::Address)>("Unembed").call(plugC);
+    auto embedResult = socketClient.method<DBus::ValueOrError<Accessibility::Address>(Accessibility::Address)>("Embed").call(plugD);
+    TEST_CHECK(!!embedResult, "C2: Re-embed after Unembed succeeds");
+    if(embedResult)
+    {
+      auto rootClient = CreateRootAccessibleClient(busName, conn);
+      auto idxResult = rootClient.method<DBus::ValueOrError<int32_t>()>("GetIndexInParent").call();
+      TEST_CHECK(!!idxResult, "C2: GetIndexInParent succeeds after re-embed");
+      if(idxResult)
+      {
+        int32_t idx = std::get<0>(idxResult.getValues());
+        TEST_CHECK(idx == 0, "C2: GetIndexInParent returns 0 after re-embed (got " + std::to_string(idx) + ")");
+      }
+    }
+    // Cleanup
+    socketClient.method<DBus::ValueOrError<void>(Accessibility::Address)>("Unembed").call(plugD);
   }
 
   // ===== Summary =====

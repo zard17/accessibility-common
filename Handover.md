@@ -1,75 +1,53 @@
-# Handover: Phase 2 Complete — Bidirectional IPC Abstraction
+# Handover: Phase 2.7 Complete — Tree Embedding Tests
 
 ## What was done
 
-### Phase 2: Bidirectional IPC Abstraction (COMPLETE)
+### Phase 2.7: Tree Embedding Tests (COMPLETE)
 
-Replaced all direct `DBus::DBusClient` usage in the bridge with abstract IPC interfaces, making the IPC layer pluggable.
+Added 9 unit tests for Socket Embed/Unembed/SetOffset functionality, exercising the server-side `ApplicationAccessible` through the D-Bus Socket interface via MockDBusWrapper.
 
-#### Phase 2a: Domain-specific IPC client interfaces (5 new headers)
-- `ipc/ipc-status-monitor.h` — `Ipc::AccessibilityStatusMonitor`
-- `ipc/ipc-key-event-forwarder.h` — `Ipc::KeyEventForwarder`
-- `ipc/ipc-direct-reading-client.h` — `Ipc::DirectReadingClient`
-- `ipc/ipc-registry-client.h` — `Ipc::RegistryClient`
-- `ipc/ipc-socket-client.h` — `Ipc::SocketClient`
+#### New helpers in `test/test-app.cpp`
+- `CreateSocketClient()` — DBusClient pointing to root path with Socket interface
+- `CreateRootAccessibleClient()` — DBusClient pointing to root with Accessible interface
 
-#### Phase 2b: Transport Factory (1 new header)
-- `ipc/ipc-transport-factory.h` — `Ipc::TransportFactory` abstract factory
+#### Test groups added
 
-#### Phase 2c: createInterfaceDescription
-- `ipc/ipc-server.h` — added `virtual unique_ptr<InterfaceDescription> createInterfaceDescription(string)`
-- `dbus/dbus-ipc-server.h` — implemented using `DBus::DBusInterfaceDescription`
+**Step 13: Server-side Socket Embed/Unembed (4 tests)**
+- A1: Embed sets embedded state — GetIndexInParent returns 0
+- A2: Embed returns application root address (path="root")
+- A3: Unembed resets state — GetIndexInParent returns error
+- A4: Unembed with wrong plug is no-op — still embedded
 
-#### Phase 2d: D-Bus backend implementations (6 new headers)
-- `dbus/dbus-status-monitor.h` — `DbusStatusMonitor`
-- `dbus/dbus-key-event-forwarder.h` — `DbusKeyEventForwarder`
-- `dbus/dbus-direct-reading-client.h` — `DbusDirectReadingClient`
-- `dbus/dbus-registry-client.h` — `DbusRegistryClient`
-- `dbus/dbus-socket-client.h` — `DbusSocketClient`
-- `dbus/dbus-transport-factory.h` — `DbusTransportFactory`
+**Step 14: SetOffset + Extents verification (3 tests)**
+- A5: SetOffset(100,200) shifts GetExtents by offset (button: 10→110, 20→220)
+- A6: SetOffset is no-op when not embedded — extents unchanged
+- A7: SetOffset resets after Unembed — extents back to original
 
-#### Phase 2e: Bridge migration
-- `bridge-base.h` — Changed helper signatures (`AddFunctionToInterface` etc.) to take `Ipc::InterfaceDescription&` instead of `DBus::DBusInterfaceDescription&`. Added `mTransportFactory`, `mRegistryClient`. Removed `getConnection()`, `getDbusServer()`.
-- `bridge-base.cpp` — `ForceUp()` uses `mTransportFactory->connect()`. `UpdateRegisteredEvents()` uses `mRegistryClient`.
-- `bridge-impl.cpp` — Replaced 4 `DBus::DBusClient` members with abstract interfaces. `BridgeImpl()` constructor creates `DbusTransportFactory`. All client operations use abstract interface methods.
-- 12 bridge-*.cpp files — `RegisterInterfaces()` migrated from `DBus::DBusInterfaceDescription desc{...}` to `auto desc = mIpcServer->createInterfaceDescription(...)`.
+**Step 15: Edge Cases (2 tests)**
+- C1: Double-embed overwrites parent — Unembed(old) is no-op
+- C2: Embed-Unembed-Embed cycle works correctly
 
-#### Phase 2f: Verification
-- Build: SUCCESS (no errors, only pre-existing warnings)
-- Tests: **31 passed, 0 failed**
+#### Test count
+- **56 passed, 0 failed** (31 existing + 25 new assertions across 9 test cases)
 
-### Plan updated with user-requested additions
-Added to PLAN.md:
-- **Phase 2.5**: eldbus → GDBus migration plan
-- **Phase 2.6**: TIDL IPC backend plan
-- **Phase 2.7**: Tree embedding implementation & test plan
-- **Registry daemon decision**: Not needed for Phase 2-4. For TIDL, recommend using Tizen `amd`.
+## Key observations
 
-## Key design decisions
+1. **MockSocketClient not needed**: Existing MockDBusWrapper fallback routing handles Socket interface calls. BridgeSocket::RegisterInterfaces() registers at "/" with fallback=true, so CreateSocketClient with the root path works.
 
-1. **Helper static_cast pattern**: `AddFunctionToInterface` etc. take `Ipc::InterfaceDescription&` but internally `static_cast` to `DBus::DBusInterfaceDescription&`. Practical trade-off — avoids leaking D-Bus types to bridge modules while keeping template machinery working.
+2. **ForceUp embeds via mock**: During bridge ForceUp, BridgeImpl::EmbedSocket sends an outbound Embed call that the mock routes to the bridge's own Socket handler (due to fallback matching). This means `mIsEmbedded` is already true before tests start. Tests account for this by always calling Embed explicitly first.
 
-2. **Transport factory in constructor**: `BridgeImpl()` constructor creates `DbusTransportFactory` (not external injection via `CreateBridge()`), because `mTransportFactory` is protected in `BridgeBase`.
+3. **Address bus name convention**: ApplicationAccessible::GetAddress() returns `{"", "root"}` but the framework fills in the connection's bus name during serialization. Test checks path only, not bus.
 
-3. **All new files are header-only**: No changes needed to `file.list` or CMakeLists.txt.
+## Files changed
 
-## Files changed (summary)
-
-**New files (12):** All in `accessibility/internal/bridge/`
-- `ipc/`: ipc-status-monitor.h, ipc-key-event-forwarder.h, ipc-direct-reading-client.h, ipc-registry-client.h, ipc-socket-client.h, ipc-transport-factory.h
-- `dbus/`: dbus-status-monitor.h, dbus-key-event-forwarder.h, dbus-direct-reading-client.h, dbus-registry-client.h, dbus-socket-client.h, dbus-transport-factory.h
-
-**Modified files (17):**
-- ipc-server.h, dbus-ipc-server.h (createInterfaceDescription)
-- bridge-base.h, bridge-base.cpp (TransportFactory, RegistryClient, helper signatures)
-- bridge-impl.cpp (abstract clients, factory constructor)
-- bridge-accessible.cpp, bridge-action.cpp, bridge-application.cpp, bridge-collection.cpp, bridge-component.cpp, bridge-editable-text.cpp, bridge-hyperlink.cpp, bridge-hypertext.cpp, bridge-selection.cpp, bridge-socket.cpp, bridge-text.cpp, bridge-value.cpp (createInterfaceDescription)
+**Modified files (1):**
+- `test/test-app.cpp` — Added CreateSocketClient, CreateRootAccessibleClient helpers + 9 tests (Steps 13-15)
 
 ## What's next
 
 Per updated plan priority:
-1. **Phase 2.7**: Tree embedding tests (add MockSocketClient, unit tests for Embed/Unembed/SetOffset)
-2. **Phase 2.5**: eldbus → GDBus migration (dbus-gdbus.cpp implementation)
+1. **Phase 2.5**: eldbus → GDBus migration (dbus-gdbus.cpp implementation)
+2. **Phase 2.6**: TIDL IPC backend plan
 3. **Phase 3**: AccessibilityService base class (NodeProxy, AppRegistry, GestureProvider)
 4. **Phase 4a**: Screen reader C++ rewrite
 
@@ -78,5 +56,5 @@ Per updated plan priority:
 ```bash
 cd ~/tizen/accessibility-common/build/tizen/build
 cmake .. -DENABLE_ATSPI=ON -DBUILD_TESTS=ON -DENABLE_PKG_CONFIGURE=OFF
-make -j8 && ./accessibility-test  # 31 passed, 0 failed
+make -j8 && ./accessibility-test  # 56 passed, 0 failed
 ```
