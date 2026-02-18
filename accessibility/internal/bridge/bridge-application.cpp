@@ -26,12 +26,12 @@ using namespace Accessibility;
 
 void BridgeApplication::RegisterInterfaces()
 {
-  DBus::DBusInterfaceDescription desc{Accessible::GetInterfaceName(AtspiInterface::APPLICATION)};
-  AddGetPropertyToInterface(desc, "ToolkitName", &BridgeApplication::GetToolkitName);
-  AddGetPropertyToInterface(desc, "Version", &BridgeApplication::GetVersion);
-  AddFunctionToInterface(desc, "GetIncludeHidden", &BridgeApplication::GetIncludeHidden);
-  AddFunctionToInterface(desc, "SetIncludeHidden", &BridgeApplication::SetIncludeHidden);
-  mIpcServer->addInterface("/", desc, true);
+  auto desc = mIpcServer->createInterfaceDescription(Accessible::GetInterfaceName(AtspiInterface::APPLICATION));
+  AddGetPropertyToInterface(*desc, "ToolkitName", &BridgeApplication::GetToolkitName);
+  AddGetPropertyToInterface(*desc, "Version", &BridgeApplication::GetVersion);
+  AddFunctionToInterface(*desc, "GetIncludeHidden", &BridgeApplication::GetIncludeHidden);
+  AddFunctionToInterface(*desc, "SetIncludeHidden", &BridgeApplication::SetIncludeHidden);
+  mIpcServer->addInterface("/", *desc, true);
 }
 
 std::shared_ptr<Application> BridgeApplication::FindSelf() const

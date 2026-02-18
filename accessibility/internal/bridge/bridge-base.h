@@ -31,7 +31,9 @@
 #include <accessibility/api/socket.h>
 #include <accessibility/internal/bridge/accessibility-common.h>
 #include <accessibility/internal/bridge/collection-impl.h>
+#include <accessibility/internal/bridge/ipc/ipc-registry-client.h>
 #include <accessibility/internal/bridge/ipc/ipc-server.h>
+#include <accessibility/internal/bridge/ipc/ipc-transport-factory.h>
 
 namespace Accessibility
 {
@@ -191,14 +193,18 @@ public:
   }
 
   /**
-   * @brief Adds function to dbus interface.
+   * @brief Adds function to interface description.
+   *
+   * Casts the abstract InterfaceDescription to the concrete backend type
+   * (e.g. DBusInterfaceDescription) to register the method handler.
    */
   template<typename SELF, typename... RET, typename... ARGS>
   void AddFunctionToInterface(
-    DBus::DBusInterfaceDescription& desc, const std::string& funcName, DBus::ValueOrError<RET...> (SELF::*funcPtr)(ARGS...))
+    Ipc::InterfaceDescription& desc, const std::string& funcName, DBus::ValueOrError<RET...> (SELF::*funcPtr)(ARGS...))
   {
+    auto& dbusDesc = static_cast<DBus::DBusInterfaceDescription&>(desc);
     if(auto self = dynamic_cast<SELF*>(this))
-      desc.addMethod<DBus::ValueOrError<RET...>(ARGS...)>(
+      dbusDesc.addMethod<DBus::ValueOrError<RET...>(ARGS...)>(
         funcName,
         [=](ARGS... args) -> DBus::ValueOrError<RET...>
       {
@@ -214,15 +220,16 @@ public:
   }
 
   /**
-   * @brief Adds 'Get' property to dbus interface.
+   * @brief Adds 'Get' property to interface description.
    */
   template<typename T, typename SELF>
-  void AddGetPropertyToInterface(DBus::DBusInterfaceDescription& desc,
-                                 const std::string&              funcName,
+  void AddGetPropertyToInterface(Ipc::InterfaceDescription& desc,
+                                 const std::string&         funcName,
                                  T (SELF::*funcPtr)())
   {
+    auto& dbusDesc = static_cast<DBus::DBusInterfaceDescription&>(desc);
     if(auto self = dynamic_cast<SELF*>(this))
-      desc.addProperty<T>(funcName,
+      dbusDesc.addProperty<T>(funcName,
                           [=]() -> DBus::ValueOrError<T>
       {
         try
@@ -238,15 +245,16 @@ public:
   }
 
   /**
-   * @brief Adds 'Set' property to dbus interface.
+   * @brief Adds 'Set' property to interface description.
    */
   template<typename T, typename SELF>
-  void AddSetPropertyToInterface(DBus::DBusInterfaceDescription& desc,
-                                 const std::string&              funcName,
+  void AddSetPropertyToInterface(Ipc::InterfaceDescription& desc,
+                                 const std::string&         funcName,
                                  void (SELF::*funcPtr)(T))
   {
+    auto& dbusDesc = static_cast<DBus::DBusInterfaceDescription&>(desc);
     if(auto self = dynamic_cast<SELF*>(this))
-      desc.addProperty<T>(funcName, {}, [=](T t) -> DBus::ValueOrError<void>
+      dbusDesc.addProperty<T>(funcName, {}, [=](T t) -> DBus::ValueOrError<void>
       {
         try
         {
@@ -261,16 +269,17 @@ public:
   }
 
   /**
-   * @brief Adds 'Set' and 'Get' properties to dbus interface.
+   * @brief Adds 'Set' and 'Get' properties to interface description.
    */
   template<typename T, typename T1, typename SELF>
-  void AddGetSetPropertyToInterface(DBus::DBusInterfaceDescription& desc,
-                                    const std::string&              funcName,
+  void AddGetSetPropertyToInterface(Ipc::InterfaceDescription& desc,
+                                    const std::string&         funcName,
                                     T1 (SELF::*funcPtrGet)(),
                                     DBus::ValueOrError<void> (SELF::*funcPtrSet)(T))
   {
+    auto& dbusDesc = static_cast<DBus::DBusInterfaceDescription&>(desc);
     if(auto self = dynamic_cast<SELF*>(this))
-      desc.addProperty<T>(
+      dbusDesc.addProperty<T>(
         funcName,
         [=]() -> DBus::ValueOrError<T>
       {
@@ -298,16 +307,17 @@ public:
   }
 
   /**
-   * @brief Adds 'Get' and 'Set' properties to dbus interface.
+   * @brief Adds 'Get' and 'Set' properties to interface description.
    */
   template<typename T, typename T1, typename SELF>
-  void AddGetSetPropertyToInterface(DBus::DBusInterfaceDescription& desc,
-                                    const std::string&              funcName,
+  void AddGetSetPropertyToInterface(Ipc::InterfaceDescription& desc,
+                                    const std::string&         funcName,
                                     T1 (SELF::*funcPtrGet)(),
                                     void (SELF::*funcPtrSet)(T))
   {
+    auto& dbusDesc = static_cast<DBus::DBusInterfaceDescription&>(desc);
     if(auto self = dynamic_cast<SELF*>(this))
-      desc.addProperty<T>(
+      dbusDesc.addProperty<T>(
         funcName,
         [=]() -> DBus::ValueOrError<T>
       {
@@ -494,25 +504,11 @@ protected:
    */
   void ForceDown() override;
 
-  std::unique_ptr<Ipc::Server> mIpcServer;
-  int                          mId = 0;
-  DBus::DBusClient             mRegistry;
-  bool                         IsBoundsChangedEventAllowed{false};
-
-  /**
-   * @brief Returns the D-Bus connection pointer from the IPC server backend.
-   */
-  const DBusWrapper::ConnectionPtr& getConnection() const;
-
-private:
-  /**
-   * @brief Returns a reference to the underlying DBus::DBusServer.
-   *
-   * Internal to BridgeBase — used only during init/shutdown.
-   * Bridge modules should use mIpcServer->emitSignal() instead.
-   */
-  DBus::DBusServer& getDbusServer();
-  const DBus::DBusServer& getDbusServer() const;
+  std::unique_ptr<Ipc::TransportFactory> mTransportFactory;
+  std::unique_ptr<Ipc::Server>           mIpcServer;
+  std::unique_ptr<Ipc::RegistryClient>   mRegistryClient;
+  int                                    mId = 0;
+  bool                                   IsBoundsChangedEventAllowed{false};
 };
 
 #endif // ACCESSIBILITY_INTERNAL_ACCESSIBILITY_BRIDGE_BASE_H

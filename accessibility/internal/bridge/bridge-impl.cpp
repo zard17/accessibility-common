@@ -28,6 +28,7 @@
 #include <accessibility/api/log.h>
 #include <accessibility/api/accessible.h>
 #include <accessibility/internal/bridge/accessibility-common.h>
+#include <accessibility/internal/bridge/dbus/dbus-transport-factory.h>
 #include <accessibility/internal/bridge/bridge-accessible.h>
 #include <accessibility/internal/bridge/bridge-action.h>
 #include <accessibility/internal/bridge/bridge-application.h>
@@ -73,9 +74,9 @@ class BridgeImpl : public virtual BridgeBase,
                    public BridgeHyperlink,
                    public BridgeSocket
 {
-  DBus::DBusClient                                              mAccessibilityStatusClient{};
-  DBus::DBusClient                                              mRegistryClient{};
-  DBus::DBusClient                                              mDirectReadingClient{};
+  std::unique_ptr<Ipc::AccessibilityStatusMonitor>               mStatusMonitor;
+  std::unique_ptr<Ipc::KeyEventForwarder>                       mKeyEventForwarder;
+  std::unique_ptr<Ipc::DirectReadingClient>                     mDirectReadingClient;
   bool                                                          mIsScreenReaderEnabled{false};
   bool                                                          mIsEnabled{false};
   bool                                                          mIsApplicationRunning{false};
@@ -89,7 +90,10 @@ class BridgeImpl : public virtual BridgeBase,
   std::map<uint32_t, std::shared_ptr<Accessible>>               mAccessibles; // Actor.ID to Accessible map
 
 public:
-  BridgeImpl() = default;
+  BridgeImpl()
+  {
+    mTransportFactory = std::make_unique<Ipc::DbusTransportFactory>();
+  }
   ~BridgeImpl()
   {
     mBridgeTerminated = true;
@@ -187,11 +191,7 @@ public:
    */
   bool EmitKeyEvent(Accessibility::KeyEvent keyEvent, std::function<void(Accessibility::KeyEvent, bool)> callback) override
   {
-    using ArgumentTypes = std::tuple<uint32_t, int32_t, int32_t, int32_t, int32_t, std::string, bool>;
-
-    static const char* methodName = "NotifyListenersSync";
-
-    if(!IsUp() || !mIpcServer)
+    if(!IsUp() || !mIpcServer || !mKeyEventForwarder)
     {
       return false;
     }
@@ -200,15 +200,15 @@ public:
     auto     timeStamp = static_cast<std::int32_t>(keyEvent.time);
     bool     isText    = !keyEvent.keyString.empty();
 
-    ArgumentTypes arguments(keyType, 0, keyEvent.keyCode, 0, timeStamp, keyEvent.keyName, isText);
-
-    auto functor = [keyEvent = std::move(keyEvent), callback = std::move(callback)](DBus::ValueOrError<bool> reply)
+    mKeyEventForwarder->notifyListenersSync(
+      keyType, keyEvent.keyCode, timeStamp, keyEvent.keyName, isText,
+      [keyEvent = std::move(keyEvent), callback = std::move(callback)](Ipc::ValueOrError<bool> reply)
     {
       bool consumed = false;
 
       if(!reply)
       {
-        ACCESSIBILITY_LOG_ERROR("%s call failed: %s", methodName, reply.getError().message.c_str());
+        ACCESSIBILITY_LOG_ERROR("NotifyListenersSync call failed: %s", reply.getError().message.c_str());
       }
       else
       {
@@ -216,9 +216,7 @@ public:
       }
 
       callback(std::move(keyEvent), consumed);
-    };
-
-    mRegistryClient.method<bool(ArgumentTypes)>(methodName).asyncCall(std::move(functor), arguments);
+    });
 
     return true;
   }
@@ -228,18 +226,18 @@ public:
    */
   void Pause() override
   {
-    if(!IsUp() || !mIpcServer)
+    if(!IsUp() || !mIpcServer || !mDirectReadingClient)
     {
       return;
     }
 
-    mDirectReadingClient.method<DBus::ValueOrError<void>(bool)>("PauseResume").asyncCall([](DBus::ValueOrError<void> msg)
+    mDirectReadingClient->pauseResume(true, [](Ipc::ValueOrError<void> msg)
     {
       if(!msg)
       {
         LOG() << "Direct reading command failed (" << msg.getError().message << ")\n";
       }
-    }, true);
+    });
   }
 
   /**
@@ -247,18 +245,18 @@ public:
    */
   void Resume() override
   {
-    if(!IsUp() || !mIpcServer)
+    if(!IsUp() || !mIpcServer || !mDirectReadingClient)
     {
       return;
     }
 
-    mDirectReadingClient.method<DBus::ValueOrError<void>(bool)>("PauseResume").asyncCall([](DBus::ValueOrError<void> msg)
+    mDirectReadingClient->pauseResume(false, [](Ipc::ValueOrError<void> msg)
     {
       if(!msg)
       {
         LOG() << "Direct reading command failed (" << msg.getError().message << ")\n";
       }
-    }, false);
+    });
   }
 
   /**
@@ -266,18 +264,18 @@ public:
    */
   void StopReading(bool alsoNonDiscardable) override
   {
-    if(!IsUp() || !mIpcServer)
+    if(!IsUp() || !mIpcServer || !mDirectReadingClient)
     {
       return;
     }
 
-    mDirectReadingClient.method<DBus::ValueOrError<void>(bool)>("StopReading").asyncCall([](DBus::ValueOrError<void> msg)
+    mDirectReadingClient->stopReading(alsoNonDiscardable, [](Ipc::ValueOrError<void> msg)
     {
       if(!msg)
       {
         LOG() << "Direct reading command failed (" << msg.getError().message << ")\n";
       }
-    }, alsoNonDiscardable);
+    });
   }
 
   /**
@@ -285,12 +283,12 @@ public:
    */
   void Say(const std::string& text, bool discardable, std::function<void(std::string)> callback) override
   {
-    if(!IsUp() || !mIpcServer)
+    if(!IsUp() || !mIpcServer || !mDirectReadingClient)
     {
       return;
     }
 
-    mDirectReadingClient.method<DBus::ValueOrError<std::string, bool, int32_t>(std::string, bool)>("ReadCommand").asyncCall([=](DBus::ValueOrError<std::string, bool, int32_t> msg)
+    mDirectReadingClient->readCommand(text, discardable, [this, callback](Ipc::ValueOrError<std::string, bool, int32_t> msg)
     {
       if(!msg)
       {
@@ -300,7 +298,7 @@ public:
       {
         mDirectReadingCallbacks.emplace(std::get<2>(msg), callback);
       }
-    }, text, discardable);
+    });
   }
 
   /**
@@ -322,8 +320,8 @@ public:
     }
 
     BridgeAccessible::ForceDown();
-    mRegistryClient      = {};
-    mDirectReadingClient = {};
+    mKeyEventForwarder.reset();
+    mDirectReadingClient.reset();
     mDirectReadingCallbacks.clear();
     mApplication->mChildren.clear();
     ClearTimer();
@@ -373,8 +371,8 @@ public:
         platformCallbacks.removeIdle(mIdleHandle);
       }
     }
-    mIdleHandle                = 0;
-    mAccessibilityStatusClient = {};
+    mIdleHandle = 0;
+    mStatusMonitor.reset();
     mIpcServer.reset();
   }
 
@@ -423,10 +421,10 @@ public:
       BridgeHyperlink::RegisterInterfaces();
       BridgeSocket::RegisterInterfaces();
 
-      mRegistryClient      = {AtspiDbusNameRegistry, AtspiDbusPathDec, Accessible::GetInterfaceName(AtspiInterface::DEVICE_EVENT_CONTROLLER), getConnection()};
-      mDirectReadingClient = DBus::DBusClient{DirectReadingDBusName, DirectReadingDBusPath, DirectReadingDBusInterface, getConnection()};
+      mKeyEventForwarder  = mTransportFactory->createKeyEventForwarder(*mIpcServer);
+      mDirectReadingClient = mTransportFactory->createDirectReadingClient(*mIpcServer);
 
-      mDirectReadingClient.addSignal<void(int32_t, std::string)>("ReadingStateChanged", [=](int32_t id, std::string readingState)
+      mDirectReadingClient->listenReadingStateChanged([this](int32_t id, std::string readingState)
       {
         auto it = mDirectReadingCallbacks.find(id);
         if(it != mDirectReadingCallbacks.end())
@@ -719,7 +717,7 @@ public:
 
   void ReadIsEnabledProperty()
   {
-    mAccessibilityStatusClient.property<bool>("IsEnabled").asyncGet([this](DBus::ValueOrError<bool> msg)
+    mStatusMonitor->readIsEnabled([this](Ipc::ValueOrError<bool> msg)
     {
       if(ACCESSIBILITY_UNLIKELY(mTerminateFunctionCalled))
       {
@@ -730,7 +728,7 @@ public:
       if(!msg)
       {
         ACCESSIBILITY_LOG_ERROR("Get IsEnabled property error: %s\n", msg.getError().message.c_str());
-        if(msg.getError().errorType == DBus::ErrorType::INVALID_REPLY)
+        if(msg.getError().errorType == Ipc::ErrorType::INVALID_REPLY)
         {
           mReadIsEnabledTimer.Start(RETRY_INTERVAL, [this]() { return ReadIsEnabledTimerCallback(); });
         }
@@ -746,7 +744,7 @@ public:
 
   void ListenIsEnabledProperty()
   {
-    mAccessibilityStatusClient.addPropertyChangedEvent<bool>("IsEnabled", [this](bool res)
+    mStatusMonitor->listenIsEnabled([this](bool res)
     {
       mIsEnabled = res;
       SwitchBridge();
@@ -762,12 +760,12 @@ public:
   void ReadScreenReaderEnabledProperty()
   {
     // can be true because of SuppressScreenReader before init
-    if(!mAccessibilityStatusClient)
+    if(!mStatusMonitor)
     {
       return;
     }
 
-    mAccessibilityStatusClient.property<bool>("ScreenReaderEnabled").asyncGet([this](DBus::ValueOrError<bool> msg)
+    mStatusMonitor->readScreenReaderEnabled([this](Ipc::ValueOrError<bool> msg)
     {
       if(ACCESSIBILITY_UNLIKELY(mTerminateFunctionCalled))
       {
@@ -778,7 +776,7 @@ public:
       if(!msg)
       {
         ACCESSIBILITY_LOG_ERROR("Get ScreenReaderEnabled property error: %s\n", msg.getError().message.c_str());
-        if(msg.getError().errorType == DBus::ErrorType::INVALID_REPLY)
+        if(msg.getError().errorType == Ipc::ErrorType::INVALID_REPLY)
         {
           mReadScreenReaderEnabledTimer.Start(RETRY_INTERVAL, [this]() { return ReadScreenReaderEnabledTimerCallback(); });
         }
@@ -806,7 +804,7 @@ public:
 
   void ListenScreenReaderEnabledProperty()
   {
-    mAccessibilityStatusClient.addPropertyChangedEvent<bool>("ScreenReaderEnabled", [this](bool res)
+    mStatusMonitor->listenScreenReaderEnabled([this](bool res)
     {
       mIsScreenReaderEnabled = res;
       EmitScreenReaderEnabledSignal();
@@ -825,16 +823,17 @@ public:
 
   bool InitializeAccessibilityStatusClient()
   {
-    if(!DBusWrapper::Installed())
+    if(!mTransportFactory || !mTransportFactory->isAvailable())
     {
       return false;
     }
 
-    mAccessibilityStatusClient = DBus::DBusClient{A11yDbusName, A11yDbusPath, A11yDbusStatusInterface, DBus::ConnectionType::SESSION};
+    mStatusMonitor = mTransportFactory->createStatusMonitor();
 
-    if(!mAccessibilityStatusClient)
+    if(!mStatusMonitor || !*mStatusMonitor)
     {
-      ACCESSIBILITY_LOG_ERROR("Accessibility Status DbusClient is not ready\n");
+      ACCESSIBILITY_LOG_ERROR("Accessibility Status Monitor is not ready\n");
+      mStatusMonitor.reset();
       return false;
     }
 
@@ -878,7 +877,7 @@ public:
     }
 
     // No IPC transport — enable accessibility locally
-    if(!DBusWrapper::Installed())
+    if(!mTransportFactory || !mTransportFactory->isAvailable())
     {
       mIsEnabled            = true;
       mIsApplicationRunning = true;
@@ -923,10 +922,10 @@ public:
 
   Address EmbedSocket(const Address& plug, const Address& socket) override
   {
-    if(!mIpcServer) return {};
+    if(!mIpcServer || !mTransportFactory) return {};
 
-    auto client = CreateSocketClient(socket);
-    auto reply  = client.method<Address(Address)>("Embed").call(plug);
+    auto client = mTransportFactory->createSocketClient(socket, *mIpcServer);
+    auto reply  = client->embed(plug);
 
     if(!reply)
     {
@@ -939,22 +938,20 @@ public:
 
   void UnembedSocket(const Address& plug, const Address& socket) override
   {
-    if(!mIpcServer) return;
+    if(!mIpcServer || !mTransportFactory) return;
 
-    auto client = CreateSocketClient(socket);
-
-    client.method<void(Address)>("Unembed").asyncCall([](DBus::ValueOrError<void>) {}, plug);
+    auto client = mTransportFactory->createSocketClient(socket, *mIpcServer);
+    client->unembed(plug, [](Ipc::ValueOrError<void>) {});
   }
 
   void SetSocketOffset(ProxyAccessible* socket, std::int32_t x, std::int32_t y) override
   {
-    if(!mIpcServer) return;
+    if(!mIpcServer || !mTransportFactory) return;
 
-    AddCoalescableMessage(CoalescableMessages::SET_OFFSET, socket, 1.0f, [=]()
+    AddCoalescableMessage(CoalescableMessages::SET_OFFSET, socket, 1.0f, [this, socket, x, y]()
     {
-      auto client = CreateSocketClient(socket->GetAddress());
-
-      client.method<void(std::int32_t, std::int32_t)>("SetOffset").asyncCall([](DBus::ValueOrError<void>) {}, x, y);
+      auto client = mTransportFactory->createSocketClient(socket->GetAddress(), *mIpcServer);
+      client->setOffset(x, y, [](Ipc::ValueOrError<void>) {});
     });
   }
 
@@ -985,29 +982,24 @@ public:
   }
 
 private:
-  DBus::DBusClient CreateSocketClient(const Address& socket)
-  {
-    return {socket.GetBus(), ATSPI_PREFIX_PATH + socket.GetPath(), Accessible::GetInterfaceName(AtspiInterface::SOCKET), getConnection()};
-  }
-
   void RequestBusName(const std::string& busName)
   {
-    if(busName.empty())
+    if(busName.empty() || !mTransportFactory || !mIpcServer)
     {
       return;
     }
 
-    DBus::requestBusName(getConnection(), busName);
+    mTransportFactory->requestBusName(*mIpcServer, busName);
   }
 
   void ReleaseBusName(const std::string& busName)
   {
-    if(busName.empty())
+    if(busName.empty() || !mTransportFactory || !mIpcServer)
     {
       return;
     }
 
-    DBus::releaseBusName(getConnection(), busName);
+    mTransportFactory->releaseBusName(*mIpcServer, busName);
   }
 
   bool mTerminateFunctionCalled{false};

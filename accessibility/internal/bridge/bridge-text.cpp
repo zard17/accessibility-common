@@ -29,17 +29,17 @@ void BridgeText::RegisterInterfaces()
   // Screen Reader will call the methods with the exact names as specified in the AT-SPI Text interface:
   // https://gitlab.gnome.org/GNOME/at-spi2-core/-/blob/master/xml/Text.xml
 
-  DBus::DBusInterfaceDescription desc{Accessible::GetInterfaceName(AtspiInterface::TEXT)};
-  AddFunctionToInterface(desc, "GetText", &BridgeText::GetText);
-  AddGetPropertyToInterface(desc, "CharacterCount", &BridgeText::GetCharacterCount);
-  AddGetPropertyToInterface(desc, "CaretOffset", &BridgeText::GetCursorOffset);
-  AddFunctionToInterface(desc, "SetCaretOffset", &BridgeText::SetCursorOffset);
-  AddFunctionToInterface(desc, "GetTextAtOffset", &BridgeText::GetTextAtOffset);
-  AddFunctionToInterface(desc, "GetSelection", &BridgeText::GetRangeOfSelection);
-  AddFunctionToInterface(desc, "SetSelection", &BridgeText::SetRangeOfSelection);
-  AddFunctionToInterface(desc, "RemoveSelection", &BridgeText::RemoveSelection);
-  AddFunctionToInterface(desc, "GetRangeExtents", &BridgeText::GetRangeExtents);
-  mIpcServer->addInterface("/", desc, true);
+  auto desc = mIpcServer->createInterfaceDescription(Accessible::GetInterfaceName(AtspiInterface::TEXT));
+  AddFunctionToInterface(*desc, "GetText", &BridgeText::GetText);
+  AddGetPropertyToInterface(*desc, "CharacterCount", &BridgeText::GetCharacterCount);
+  AddGetPropertyToInterface(*desc, "CaretOffset", &BridgeText::GetCursorOffset);
+  AddFunctionToInterface(*desc, "SetCaretOffset", &BridgeText::SetCursorOffset);
+  AddFunctionToInterface(*desc, "GetTextAtOffset", &BridgeText::GetTextAtOffset);
+  AddFunctionToInterface(*desc, "GetSelection", &BridgeText::GetRangeOfSelection);
+  AddFunctionToInterface(*desc, "SetSelection", &BridgeText::SetRangeOfSelection);
+  AddFunctionToInterface(*desc, "RemoveSelection", &BridgeText::RemoveSelection);
+  AddFunctionToInterface(*desc, "GetRangeExtents", &BridgeText::GetRangeExtents);
+  mIpcServer->addInterface("/", *desc, true);
 }
 
 std::shared_ptr<Text> BridgeText::FindSelf() const

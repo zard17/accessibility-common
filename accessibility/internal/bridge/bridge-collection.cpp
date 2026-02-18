@@ -29,11 +29,11 @@ using namespace Accessibility;
 
 void BridgeCollection::RegisterInterfaces()
 {
-  DBus::DBusInterfaceDescription desc{Accessible::GetInterfaceName(AtspiInterface::COLLECTION)};
-  AddFunctionToInterface(desc, "GetMatches", &BridgeCollection::GetMatches);
-  AddFunctionToInterface(desc, "GetMatchesInMatches", &BridgeCollection::GetMatchesInMatches);
+  auto desc = mIpcServer->createInterfaceDescription(Accessible::GetInterfaceName(AtspiInterface::COLLECTION));
+  AddFunctionToInterface(*desc, "GetMatches", &BridgeCollection::GetMatches);
+  AddFunctionToInterface(*desc, "GetMatchesInMatches", &BridgeCollection::GetMatchesInMatches);
 
-  mIpcServer->addInterface("/", desc, true);
+  mIpcServer->addInterface("/", *desc, true);
 }
 
 std::shared_ptr<Collection> BridgeCollection::FindSelf() const

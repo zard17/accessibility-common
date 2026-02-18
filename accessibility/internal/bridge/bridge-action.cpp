@@ -23,17 +23,17 @@ using namespace Accessibility;
 
 void BridgeAction::RegisterInterfaces()
 {
-  DBus::DBusInterfaceDescription desc{Accessible::GetInterfaceName(AtspiInterface::ACTION)};
+  auto desc = mIpcServer->createInterfaceDescription(Accessible::GetInterfaceName(AtspiInterface::ACTION));
 
-  AddGetPropertyToInterface(desc, "NActions", &BridgeAction::GetActionCount);
+  AddGetPropertyToInterface(*desc, "NActions", &BridgeAction::GetActionCount);
 
-  AddFunctionToInterface(desc, "GetName", &BridgeAction::GetActionName);
-  AddFunctionToInterface(desc, "GetLocalizedName", &BridgeAction::GetLocalizedActionName);
-  AddFunctionToInterface(desc, "GetDescription", &BridgeAction::GetActionDescription);
-  AddFunctionToInterface(desc, "GetKeyBinding", &BridgeAction::GetActionKeyBinding);
-  AddFunctionToInterface(desc, "DoAction", &BridgeAction::DoAction);
-  AddFunctionToInterface(desc, "DoActionName", &BridgeAction::DoActionName);
-  mIpcServer->addInterface("/", desc, true);
+  AddFunctionToInterface(*desc, "GetName", &BridgeAction::GetActionName);
+  AddFunctionToInterface(*desc, "GetLocalizedName", &BridgeAction::GetLocalizedActionName);
+  AddFunctionToInterface(*desc, "GetDescription", &BridgeAction::GetActionDescription);
+  AddFunctionToInterface(*desc, "GetKeyBinding", &BridgeAction::GetActionKeyBinding);
+  AddFunctionToInterface(*desc, "DoAction", &BridgeAction::DoAction);
+  AddFunctionToInterface(*desc, "DoActionName", &BridgeAction::DoActionName);
+  mIpcServer->addInterface("/", *desc, true);
 }
 
 std::shared_ptr<Action> BridgeAction::FindSelf() const

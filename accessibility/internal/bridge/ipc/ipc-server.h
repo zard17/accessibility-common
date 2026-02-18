@@ -19,6 +19,7 @@
  */
 
 // EXTERNAL INCLUDES
+#include <memory>
 #include <string>
 #include <variant>
 
@@ -102,6 +103,18 @@ public:
                           int                            detail2,
                           const SignalVariant&            data,
                           const Accessibility::Address&  sender) = 0;
+
+  /**
+   * @brief Creates an InterfaceDescription for the given interface name.
+   *
+   * Each IPC backend returns its concrete subclass (e.g. DBusInterfaceDescription).
+   * Bridge modules use this factory instead of constructing backend-specific
+   * descriptions directly.
+   *
+   * @param[in] interfaceName The AT-SPI interface name
+   * @return A new InterfaceDescription instance
+   */
+  virtual std::unique_ptr<InterfaceDescription> createInterfaceDescription(const std::string& interfaceName) = 0;
 };
 
 } // namespace Ipc

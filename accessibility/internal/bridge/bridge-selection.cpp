@@ -24,16 +24,16 @@ using namespace Accessibility;
 
 void BridgeSelection::RegisterInterfaces()
 {
-  DBus::DBusInterfaceDescription desc{Accessible::GetInterfaceName(AtspiInterface::SELECTION)};
-  AddGetPropertyToInterface(desc, "NSelectedChildren", &BridgeSelection::GetSelectedChildrenCount);
-  AddFunctionToInterface(desc, "GetSelectedChild", &BridgeSelection::GetSelectedChild);
-  AddFunctionToInterface(desc, "SelectChild", &BridgeSelection::SelectChild);
-  AddFunctionToInterface(desc, "DeselectSelectedChild", &BridgeSelection::DeselectSelectedChild);
-  AddFunctionToInterface(desc, "IsChildSelected", &BridgeSelection::IsChildSelected);
-  AddFunctionToInterface(desc, "SelectAll", &BridgeSelection::SelectAll);
-  AddFunctionToInterface(desc, "ClearSelection", &BridgeSelection::ClearSelection);
-  AddFunctionToInterface(desc, "DeselectChild", &BridgeSelection::DeselectChild);
-  mIpcServer->addInterface("/", desc, true);
+  auto desc = mIpcServer->createInterfaceDescription(Accessible::GetInterfaceName(AtspiInterface::SELECTION));
+  AddGetPropertyToInterface(*desc, "NSelectedChildren", &BridgeSelection::GetSelectedChildrenCount);
+  AddFunctionToInterface(*desc, "GetSelectedChild", &BridgeSelection::GetSelectedChild);
+  AddFunctionToInterface(*desc, "SelectChild", &BridgeSelection::SelectChild);
+  AddFunctionToInterface(*desc, "DeselectSelectedChild", &BridgeSelection::DeselectSelectedChild);
+  AddFunctionToInterface(*desc, "IsChildSelected", &BridgeSelection::IsChildSelected);
+  AddFunctionToInterface(*desc, "SelectAll", &BridgeSelection::SelectAll);
+  AddFunctionToInterface(*desc, "ClearSelection", &BridgeSelection::ClearSelection);
+  AddFunctionToInterface(*desc, "DeselectChild", &BridgeSelection::DeselectChild);
+  mIpcServer->addInterface("/", *desc, true);
 }
 
 std::shared_ptr<Selection> BridgeSelection::FindSelf() const

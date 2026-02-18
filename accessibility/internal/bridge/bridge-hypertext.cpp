@@ -26,11 +26,11 @@ using namespace Accessibility;
 
 void BridgeHypertext::RegisterInterfaces()
 {
-  DBus::DBusInterfaceDescription desc{Accessible::GetInterfaceName(AtspiInterface::HYPERTEXT)};
-  AddFunctionToInterface(desc, "GetNLinks", &BridgeHypertext::GetLinkCount);
-  AddFunctionToInterface(desc, "GetLink", &BridgeHypertext::GetLink);
-  AddFunctionToInterface(desc, "GetLinkIndex", &BridgeHypertext::GetLinkIndex);
-  mIpcServer->addInterface("/", desc, true);
+  auto desc = mIpcServer->createInterfaceDescription(Accessible::GetInterfaceName(AtspiInterface::HYPERTEXT));
+  AddFunctionToInterface(*desc, "GetNLinks", &BridgeHypertext::GetLinkCount);
+  AddFunctionToInterface(*desc, "GetLink", &BridgeHypertext::GetLink);
+  AddFunctionToInterface(*desc, "GetLinkIndex", &BridgeHypertext::GetLinkIndex);
+  mIpcServer->addInterface("/", *desc, true);
 }
 
 std::shared_ptr<Hypertext> BridgeHypertext::FindSelf() const

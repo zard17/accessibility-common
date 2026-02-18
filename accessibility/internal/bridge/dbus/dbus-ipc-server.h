@@ -19,6 +19,7 @@
  */
 
 // EXTERNAL INCLUDES
+#include <memory>
 #include <string>
 #include <tuple>
 
@@ -109,6 +110,11 @@ public:
           objectPath, interfaceName, signalName, detail, detail1, detail2, tmp, sender);
       }
     }, data);
+  }
+
+  std::unique_ptr<InterfaceDescription> createInterfaceDescription(const std::string& interfaceName) override
+  {
+    return std::make_unique<DBus::DBusInterfaceDescription>(interfaceName);
   }
 
   // D-Bus-specific accessors

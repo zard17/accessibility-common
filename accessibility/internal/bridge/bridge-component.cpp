@@ -34,19 +34,19 @@ void BridgeComponent::RegisterInterfaces()
   // Screen Reader will call the methods with the exact names as specified in the AT-SPI Component interface:
   // https://gitlab.gnome.org/GNOME/at-spi2-core/-/blob/master/xml/Component.xml
 
-  DBus::DBusInterfaceDescription desc{Accessible::GetInterfaceName(AtspiInterface::COMPONENT)};
-  AddFunctionToInterface(desc, "Contains", &BridgeComponent::IsAccessibleContainingPoint);
-  AddFunctionToInterface(desc, "GetAccessibleAtPoint", &BridgeComponent::GetAccessibleAtPoint);
-  AddFunctionToInterface(desc, "GetExtents", &BridgeComponent::GetExtents);
-  AddFunctionToInterface(desc, "GetPosition", &BridgeComponent::GetPosition);
-  AddFunctionToInterface(desc, "GetSize", &BridgeComponent::GetSize);
-  AddFunctionToInterface(desc, "GetLayer", &BridgeComponent::GetLayer);
-  AddFunctionToInterface(desc, "GetAlpha", &BridgeComponent::GetAlpha);
-  AddFunctionToInterface(desc, "GetMDIZOrder", &BridgeComponent::GetMdiZOrder);
-  AddFunctionToInterface(desc, "GrabHighlight", &BridgeComponent::GrabHighlight);
-  AddFunctionToInterface(desc, "GrabFocus", &BridgeComponent::GrabFocus);
-  AddFunctionToInterface(desc, "ClearHighlight", &BridgeComponent::ClearHighlight);
-  mIpcServer->addInterface("/", desc, true);
+  auto desc = mIpcServer->createInterfaceDescription(Accessible::GetInterfaceName(AtspiInterface::COMPONENT));
+  AddFunctionToInterface(*desc, "Contains", &BridgeComponent::IsAccessibleContainingPoint);
+  AddFunctionToInterface(*desc, "GetAccessibleAtPoint", &BridgeComponent::GetAccessibleAtPoint);
+  AddFunctionToInterface(*desc, "GetExtents", &BridgeComponent::GetExtents);
+  AddFunctionToInterface(*desc, "GetPosition", &BridgeComponent::GetPosition);
+  AddFunctionToInterface(*desc, "GetSize", &BridgeComponent::GetSize);
+  AddFunctionToInterface(*desc, "GetLayer", &BridgeComponent::GetLayer);
+  AddFunctionToInterface(*desc, "GetAlpha", &BridgeComponent::GetAlpha);
+  AddFunctionToInterface(*desc, "GetMDIZOrder", &BridgeComponent::GetMdiZOrder);
+  AddFunctionToInterface(*desc, "GrabHighlight", &BridgeComponent::GrabHighlight);
+  AddFunctionToInterface(*desc, "GrabFocus", &BridgeComponent::GrabFocus);
+  AddFunctionToInterface(*desc, "ClearHighlight", &BridgeComponent::ClearHighlight);
+  mIpcServer->addInterface("/", *desc, true);
 }
 
 Accessible* BridgeComponent::FindSelf() const

@@ -560,31 +560,31 @@ BridgeAccessible::BridgeAccessible()
 
 void BridgeAccessible::RegisterInterfaces()
 {
-  DBus::DBusInterfaceDescription desc{Accessible::GetInterfaceName(AtspiInterface::ACCESSIBLE)};
-  AddGetPropertyToInterface(desc, "ChildCount", &BridgeAccessible::GetChildCount);
-  AddGetPropertyToInterface(desc, "Name", &BridgeAccessible::GetName);
-  AddGetPropertyToInterface(desc, "Description", &BridgeAccessible::GetDescription);
-  AddGetPropertyToInterface(desc, "Parent", &BridgeAccessible::GetParent);
-  AddFunctionToInterface(desc, "GetRole", &BridgeAccessible::GetRole);
-  AddFunctionToInterface(desc, "GetRoleName", &BridgeAccessible::GetRoleName);
-  AddFunctionToInterface(desc, "GetLocalizedRoleName", &BridgeAccessible::GetLocalizedRoleName);
-  AddFunctionToInterface(desc, "GetState", &BridgeAccessible::GetStates);
-  AddFunctionToInterface(desc, "GetAttributes", &BridgeAccessible::GetAttributes);
-  AddFunctionToInterface(desc, "GetInterfaces", &BridgeAccessible::GetInterfacesAsStrings);
-  AddFunctionToInterface(desc, "GetChildAtIndex", &BridgeAccessible::GetChildAtIndex);
-  AddFunctionToInterface(desc, "GetChildren", &BridgeAccessible::GetChildren);
-  AddFunctionToInterface(desc, "GetIndexInParent", &BridgeAccessible::GetIndexInParent);
-  AddFunctionToInterface(desc, "GetNavigableAtPoint", &BridgeAccessible::GetNavigableAtPoint);
-  AddFunctionToInterface(desc, "GetNeighbor", &BridgeAccessible::GetNeighbor);
-  AddFunctionToInterface(desc, "GetDefaultLabelInfo", &BridgeAccessible::GetDefaultLabelInfo);
-  AddFunctionToInterface(desc, "DoGesture", &BridgeAccessible::DoGesture);
-  AddFunctionToInterface(desc, "GetReadingMaterial", &BridgeAccessible::GetReadingMaterial);
-  AddFunctionToInterface(desc, "GetRelationSet", &BridgeAccessible::GetRelationSet);
-  AddFunctionToInterface(desc, "SetListenPostRender", &BridgeAccessible::SetListenPostRender);
-  AddFunctionToInterface(desc, "GetNodeInfo", &BridgeAccessible::GetNodeInfo);
-  AddFunctionToInterface(desc, "DumpTree", &BridgeAccessible::DumpTree);
-  AddFunctionToInterface(desc, "GetStringProperty", &BridgeAccessible::GetStringProperty);
-  mIpcServer->addInterface("/", desc, true);
+  auto desc = mIpcServer->createInterfaceDescription(Accessible::GetInterfaceName(AtspiInterface::ACCESSIBLE));
+  AddGetPropertyToInterface(*desc, "ChildCount", &BridgeAccessible::GetChildCount);
+  AddGetPropertyToInterface(*desc, "Name", &BridgeAccessible::GetName);
+  AddGetPropertyToInterface(*desc, "Description", &BridgeAccessible::GetDescription);
+  AddGetPropertyToInterface(*desc, "Parent", &BridgeAccessible::GetParent);
+  AddFunctionToInterface(*desc, "GetRole", &BridgeAccessible::GetRole);
+  AddFunctionToInterface(*desc, "GetRoleName", &BridgeAccessible::GetRoleName);
+  AddFunctionToInterface(*desc, "GetLocalizedRoleName", &BridgeAccessible::GetLocalizedRoleName);
+  AddFunctionToInterface(*desc, "GetState", &BridgeAccessible::GetStates);
+  AddFunctionToInterface(*desc, "GetAttributes", &BridgeAccessible::GetAttributes);
+  AddFunctionToInterface(*desc, "GetInterfaces", &BridgeAccessible::GetInterfacesAsStrings);
+  AddFunctionToInterface(*desc, "GetChildAtIndex", &BridgeAccessible::GetChildAtIndex);
+  AddFunctionToInterface(*desc, "GetChildren", &BridgeAccessible::GetChildren);
+  AddFunctionToInterface(*desc, "GetIndexInParent", &BridgeAccessible::GetIndexInParent);
+  AddFunctionToInterface(*desc, "GetNavigableAtPoint", &BridgeAccessible::GetNavigableAtPoint);
+  AddFunctionToInterface(*desc, "GetNeighbor", &BridgeAccessible::GetNeighbor);
+  AddFunctionToInterface(*desc, "GetDefaultLabelInfo", &BridgeAccessible::GetDefaultLabelInfo);
+  AddFunctionToInterface(*desc, "DoGesture", &BridgeAccessible::DoGesture);
+  AddFunctionToInterface(*desc, "GetReadingMaterial", &BridgeAccessible::GetReadingMaterial);
+  AddFunctionToInterface(*desc, "GetRelationSet", &BridgeAccessible::GetRelationSet);
+  AddFunctionToInterface(*desc, "SetListenPostRender", &BridgeAccessible::SetListenPostRender);
+  AddFunctionToInterface(*desc, "GetNodeInfo", &BridgeAccessible::GetNodeInfo);
+  AddFunctionToInterface(*desc, "DumpTree", &BridgeAccessible::DumpTree);
+  AddFunctionToInterface(*desc, "GetStringProperty", &BridgeAccessible::GetStringProperty);
+  mIpcServer->addInterface("/", *desc, true);
 }
 
 Accessible* BridgeAccessible::FindSelf() const

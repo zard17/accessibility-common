@@ -28,13 +28,13 @@ BridgeValue::BridgeValue()
 
 void BridgeValue::RegisterInterfaces()
 {
-  DBus::DBusInterfaceDescription desc{Accessible::GetInterfaceName(AtspiInterface::VALUE)};
-  AddGetSetPropertyToInterface(desc, "CurrentValue", &BridgeValue::GetCurrentValue, &BridgeValue::SetCurrentValue);
-  AddGetPropertyToInterface(desc, "Text", &BridgeValue::GetCurrentValueText);
-  AddGetPropertyToInterface(desc, "MaximumValue", &BridgeValue::GetMaximumValue);
-  AddGetPropertyToInterface(desc, "MinimumIncrement", &BridgeValue::GetMinimumIncrement);
-  AddGetPropertyToInterface(desc, "MinimumValue", &BridgeValue::GetMinimumValue);
-  mIpcServer->addInterface("/", desc, true);
+  auto desc = mIpcServer->createInterfaceDescription(Accessible::GetInterfaceName(AtspiInterface::VALUE));
+  AddGetSetPropertyToInterface(*desc, "CurrentValue", &BridgeValue::GetCurrentValue, &BridgeValue::SetCurrentValue);
+  AddGetPropertyToInterface(*desc, "Text", &BridgeValue::GetCurrentValueText);
+  AddGetPropertyToInterface(*desc, "MaximumValue", &BridgeValue::GetMaximumValue);
+  AddGetPropertyToInterface(*desc, "MinimumIncrement", &BridgeValue::GetMinimumIncrement);
+  AddGetPropertyToInterface(*desc, "MinimumValue", &BridgeValue::GetMinimumValue);
+  mIpcServer->addInterface("/", *desc, true);
 }
 
 std::shared_ptr<Value> BridgeValue::FindSelf() const

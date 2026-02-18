@@ -31,8 +31,6 @@
 #include <accessibility/api/types.h>
 #include <accessibility/internal/bridge/bridge-platform.h>
 #include <accessibility/internal/bridge/collection-impl.h>
-#include <accessibility/internal/bridge/dbus/dbus-ipc-server.h>
-#include <accessibility/internal/bridge/dbus/dbus-ipc-client.h>
 
 using namespace Accessibility;
 
@@ -363,9 +361,12 @@ bool BridgeBase::TickCoalescableMessages()
 
 void BridgeBase::UpdateRegisteredEvents()
 {
-  using ReturnType = std::vector<std::tuple<std::string, std::string>>;
+  if(!mRegistryClient)
+  {
+    return;
+  }
 
-  mRegistry.method<DBus::ValueOrError<ReturnType>()>("GetRegisteredEvents").asyncCall([this](DBus::ValueOrError<ReturnType> msg)
+  mRegistryClient->getRegisteredEvents([this](Ipc::ValueOrError<Ipc::RegistryClient::RegisteredEventsType> msg)
   {
     if(!msg)
     {
@@ -374,7 +375,7 @@ void BridgeBase::UpdateRegisteredEvents()
     }
 
     IsBoundsChangedEventAllowed = false;
-    ReturnType values           = std::get<ReturnType>(msg.getValues());
+    auto values = std::get<0>(msg.getValues());
 
     for(long unsigned int i = 0; i < values.size(); i++)
     {
@@ -394,46 +395,45 @@ BridgeBase::ForceUpResult BridgeBase::ForceUp()
     return ForceUpResult::ALREADY_UP;
   }
 
-  if(!DBusWrapper::Installed())
+  if(!mTransportFactory || !mTransportFactory->isAvailable())
   {
     // No IPC transport. Bridge is up for local accessibility.
     return ForceUpResult::JUST_STARTED;
   }
 
-  auto proxy = DBus::DBusClient{dbusLocators::atspi::BUS, dbusLocators::atspi::OBJ_PATH, dbusLocators::atspi::BUS_INTERFACE, DBus::ConnectionType::SESSION};
-  auto addr  = proxy.method<std::string()>(dbusLocators::atspi::GET_ADDRESS).call();
+  auto connectionResult = mTransportFactory->connect();
 
-  if(!addr)
+  if(!connectionResult)
   {
-    ACCESSIBILITY_LOG_ERROR("failed at call '%s': %s\n", dbusLocators::atspi::GET_ADDRESS, addr.getError().message.c_str());
+    ACCESSIBILITY_LOG_ERROR("failed to connect to accessibility bus: %s\n", connectionResult.getError().message.c_str());
     return ForceUpResult::FAILED;
   }
 
-  auto connectionPtr = DBusWrapper::Installed()->eldbus_address_connection_get_impl(std::get<0>(addr));
-  mData->mBusName    = DBus::getConnectionName(connectionPtr);
-  mIpcServer         = std::make_unique<Ipc::DbusIpcServer>(connectionPtr);
+  auto& result    = std::get<0>(connectionResult.getValues());
+  mData->mBusName = std::move(result.busName);
+  mIpcServer      = std::move(result.server);
 
   {
-    DBus::DBusInterfaceDescription desc{Accessible::GetInterfaceName(AtspiInterface::CACHE)};
-    AddFunctionToInterface(desc, "GetItems", &BridgeBase::GetItems);
-    mIpcServer->addInterface(AtspiDbusPathCache, desc);
+    auto desc = mIpcServer->createInterfaceDescription(Accessible::GetInterfaceName(AtspiInterface::CACHE));
+    AddFunctionToInterface(*desc, "GetItems", &BridgeBase::GetItems);
+    mIpcServer->addInterface(AtspiDbusPathCache, *desc);
   }
 
   {
-    DBus::DBusInterfaceDescription desc{Accessible::GetInterfaceName(AtspiInterface::APPLICATION)};
-    AddGetSetPropertyToInterface(desc, "Id", &BridgeBase::GetId, &BridgeBase::SetId);
-    mIpcServer->addInterface(AtspiPath, desc);
+    auto desc = mIpcServer->createInterfaceDescription(Accessible::GetInterfaceName(AtspiInterface::APPLICATION));
+    AddGetSetPropertyToInterface(*desc, "Id", &BridgeBase::GetId, &BridgeBase::SetId);
+    mIpcServer->addInterface(AtspiPath, *desc);
   }
 
-  mRegistry = {AtspiDbusNameRegistry, AtspiDbusPathRegistry, Accessible::GetInterfaceName(AtspiInterface::REGISTRY), getConnection()};
+  mRegistryClient = mTransportFactory->createRegistryClient(*mIpcServer);
   UpdateRegisteredEvents();
 
-  mRegistry.addSignal<void(void)>("EventListenerRegistered", [this](void)
+  mRegistryClient->listenEventListenerRegistered([this]()
   {
     UpdateRegisteredEvents();
   });
 
-  mRegistry.addSignal<void(void)>("EventListenerDeregistered", [this](void)
+  mRegistryClient->listenEventListenerDeregistered([this]()
   {
     UpdateRegisteredEvents();
   });
@@ -450,7 +450,7 @@ void BridgeBase::ForceDown()
   {
     wrapper->Strings.clear();
   }
-  mRegistry   = {};
+  mRegistryClient.reset();
   mIpcServer.reset();
 }
 
@@ -659,17 +659,3 @@ auto BridgeBase::GetItems() -> DBus::ValueOrError<std::vector<CacheElementType>>
   return {};
 }
 
-DBus::DBusServer& BridgeBase::getDbusServer()
-{
-  return static_cast<Ipc::DbusIpcServer&>(*mIpcServer).getDbusServer();
-}
-
-const DBus::DBusServer& BridgeBase::getDbusServer() const
-{
-  return static_cast<const Ipc::DbusIpcServer&>(*mIpcServer).getDbusServer();
-}
-
-const DBusWrapper::ConnectionPtr& BridgeBase::getConnection() const
-{
-  return static_cast<const Ipc::DbusIpcServer&>(*mIpcServer).getConnection();
-}

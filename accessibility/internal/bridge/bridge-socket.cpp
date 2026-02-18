@@ -24,13 +24,13 @@ using namespace Accessibility;
 
 void BridgeSocket::RegisterInterfaces()
 {
-  DBus::DBusInterfaceDescription desc{Accessible::GetInterfaceName(AtspiInterface::SOCKET)};
+  auto desc = mIpcServer->createInterfaceDescription(Accessible::GetInterfaceName(AtspiInterface::SOCKET));
 
-  AddFunctionToInterface(desc, "Embed", &BridgeSocket::Embed);
-  AddFunctionToInterface(desc, "Unembed", &BridgeSocket::Unembed);
-  AddFunctionToInterface(desc, "SetOffset", &BridgeSocket::SetOffset);
+  AddFunctionToInterface(*desc, "Embed", &BridgeSocket::Embed);
+  AddFunctionToInterface(*desc, "Unembed", &BridgeSocket::Unembed);
+  AddFunctionToInterface(*desc, "SetOffset", &BridgeSocket::SetOffset);
 
-  mIpcServer->addInterface("/", desc, true);
+  mIpcServer->addInterface("/", *desc, true);
 }
 
 std::shared_ptr<Socket> BridgeSocket::FindSelf() const

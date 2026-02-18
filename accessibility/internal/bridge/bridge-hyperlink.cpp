@@ -26,14 +26,14 @@ using namespace Accessibility;
 
 void BridgeHyperlink::RegisterInterfaces()
 {
-  DBus::DBusInterfaceDescription desc{Accessible::GetInterfaceName(AtspiInterface::HYPERLINK)};
-  AddGetPropertyToInterface(desc, "NAnchors", &BridgeHyperlink::GetAnchorCount);
-  AddGetPropertyToInterface(desc, "StartIndex", &BridgeHyperlink::GetStartIndex);
-  AddGetPropertyToInterface(desc, "EndIndex", &BridgeHyperlink::GetEndIndex);
-  AddFunctionToInterface(desc, "GetObject", &BridgeHyperlink::GetAnchorAccessible);
-  AddFunctionToInterface(desc, "GetURI", &BridgeHyperlink::GetAnchorUri);
-  AddFunctionToInterface(desc, "IsValid", &BridgeHyperlink::IsValid);
-  mIpcServer->addInterface("/", desc, true);
+  auto desc = mIpcServer->createInterfaceDescription(Accessible::GetInterfaceName(AtspiInterface::HYPERLINK));
+  AddGetPropertyToInterface(*desc, "NAnchors", &BridgeHyperlink::GetAnchorCount);
+  AddGetPropertyToInterface(*desc, "StartIndex", &BridgeHyperlink::GetStartIndex);
+  AddGetPropertyToInterface(*desc, "EndIndex", &BridgeHyperlink::GetEndIndex);
+  AddFunctionToInterface(*desc, "GetObject", &BridgeHyperlink::GetAnchorAccessible);
+  AddFunctionToInterface(*desc, "GetURI", &BridgeHyperlink::GetAnchorUri);
+  AddFunctionToInterface(*desc, "IsValid", &BridgeHyperlink::IsValid);
+  mIpcServer->addInterface("/", *desc, true);
 }
 
 std::shared_ptr<Hyperlink> BridgeHyperlink::FindSelf() const

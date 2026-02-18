@@ -25,14 +25,14 @@ using namespace Accessibility;
 
 void BridgeEditableText::RegisterInterfaces()
 {
-  DBus::DBusInterfaceDescription desc{Accessible::GetInterfaceName(AtspiInterface::EDITABLE_TEXT)};
-  AddFunctionToInterface(desc, "CopyText", &BridgeEditableText::CopyText);
-  AddFunctionToInterface(desc, "CutText", &BridgeEditableText::CutText);
-  AddFunctionToInterface(desc, "DeleteText", &BridgeEditableText::DeleteText);
-  AddFunctionToInterface(desc, "InsertText", &BridgeEditableText::InsertText);
-  AddFunctionToInterface(desc, "PasteText", &BridgeEditableText::PasteText);
-  AddFunctionToInterface(desc, "SetTextContents", &BridgeEditableText::SetTextContents);
-  mIpcServer->addInterface("/", desc, true);
+  auto desc = mIpcServer->createInterfaceDescription(Accessible::GetInterfaceName(AtspiInterface::EDITABLE_TEXT));
+  AddFunctionToInterface(*desc, "CopyText", &BridgeEditableText::CopyText);
+  AddFunctionToInterface(*desc, "CutText", &BridgeEditableText::CutText);
+  AddFunctionToInterface(*desc, "DeleteText", &BridgeEditableText::DeleteText);
+  AddFunctionToInterface(*desc, "InsertText", &BridgeEditableText::InsertText);
+  AddFunctionToInterface(*desc, "PasteText", &BridgeEditableText::PasteText);
+  AddFunctionToInterface(*desc, "SetTextContents", &BridgeEditableText::SetTextContents);
+  mIpcServer->addInterface("/", *desc, true);
 }
 
 std::shared_ptr<EditableText> BridgeEditableText::FindSelf() const
