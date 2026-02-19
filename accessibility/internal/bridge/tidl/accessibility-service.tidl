@@ -1,0 +1,210 @@
+// Tizen Interface Definition Language (TIDL) for Accessibility Bridge
+//
+// Copyright (c) 2026 Samsung Electronics Co., Ltd.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// This file defines the AccessibilityBridge interface for direct P2P
+// IPC using Tizen's rpc_port. It replaces the D-Bus daemon with
+// direct peer-to-peer communication.
+//
+// Key design:
+//   - Every method takes an objectPath parameter to simulate D-Bus
+//     object dispatch (TIDL has no built-in object path concept).
+//   - Return types use bundle for composite values (e.g. Address pairs,
+//     ReadingMaterial structures).
+//   - Signals are mapped to TIDL delegate callbacks.
+//
+// Usage:
+//   tidlc -p -l C++ -i accessibility-service.tidl -o generated/
+//   tidlc -s -l C++ -i accessibility-service.tidl -o generated/
+
+interface AccessibilityBridge {
+    // =====================================================================
+    // Accessible interface
+    // =====================================================================
+
+    // Core properties
+    string GetName(string objectPath);
+    string GetDescription(string objectPath);
+    int GetRole(string objectPath);
+    string GetRoleName(string objectPath);
+    string GetLocalizedRoleName(string objectPath);
+    array<int> GetState(string objectPath);
+    bundle GetAttributes(string objectPath);
+    array<string> GetInterfaces(string objectPath);
+
+    // Tree navigation
+    int GetChildCount(string objectPath);
+    bundle GetChildAtIndex(string objectPath, int index);
+    bundle GetParent(string objectPath);
+    int GetIndexInParent(string objectPath);
+    bundle GetNeighbor(string objectPath, string rootPath, int direction, int flags);
+    string GetDefaultLabelInfo(string objectPath);
+
+    // Complex properties
+    bundle GetReadingMaterial(string objectPath);
+
+    // =====================================================================
+    // Component interface
+    // =====================================================================
+
+    bundle GetExtents(string objectPath, int coordType);
+    int GetLayer(string objectPath);
+    int GetMDIZOrder(string objectPath);
+    bool GrabFocus(string objectPath);
+    bool GrabHighlight(string objectPath);
+    bool ClearHighlight(string objectPath);
+    bundle GetNavigableAtPoint(string objectPath, int x, int y, int coordType);
+
+    // =====================================================================
+    // Action interface
+    // =====================================================================
+
+    string DoActionName(string objectPath, string actionName);
+    int GetActionCount(string objectPath);
+    string GetActionName(string objectPath, int index);
+    string GetLocalizedActionName(string objectPath, int index);
+    string GetActionDescription(string objectPath, int index);
+    string GetActionKeyBinding(string objectPath, int index);
+
+    // =====================================================================
+    // Value interface
+    // =====================================================================
+
+    double GetCurrentValue(string objectPath);
+    double GetMaximumValue(string objectPath);
+    double GetMinimumValue(string objectPath);
+    double GetMinimumIncrement(string objectPath);
+    void SetCurrentValue(string objectPath, double value);
+
+    // =====================================================================
+    // Selection interface
+    // =====================================================================
+
+    bool SelectChild(string objectPath, int childIndex);
+    bool DeselectChild(string objectPath, int childIndex);
+    bool IsChildSelected(string objectPath, int childIndex);
+    int GetSelectedChildCount(string objectPath);
+    bundle GetSelectedChild(string objectPath, int index);
+
+    // =====================================================================
+    // Text interface
+    // =====================================================================
+
+    string GetText(string objectPath, int startOffset, int endOffset);
+    int GetCharacterCount(string objectPath);
+    int GetCursorOffset(string objectPath);
+    bool SetCursorOffset(string objectPath, int offset);
+    bundle GetTextAtOffset(string objectPath, int offset, int granularity);
+    bundle GetRangeOfSelection(string objectPath, int selectionNum);
+    bool SetRangeOfSelection(string objectPath, int selectionNum, int start, int end);
+
+    // =====================================================================
+    // EditableText interface
+    // =====================================================================
+
+    bool CopyText(string objectPath, int startPos, int endPos);
+    bool CutText(string objectPath, int startPos, int endPos);
+    bool InsertText(string objectPath, int position, string text, int length);
+    bool SetTextContents(string objectPath, string newContents);
+    bool DeleteText(string objectPath, int startPos, int endPos);
+
+    // =====================================================================
+    // Collection interface
+    // =====================================================================
+
+    bundle GetMatches(string objectPath, bundle rule, int sortBy, int count, bool traverse);
+
+    // =====================================================================
+    // Socket interface
+    // =====================================================================
+
+    bundle Embed(string objectPath, bundle plug);
+    void Unembed(string objectPath, bundle plug);
+    void SetOffset(string objectPath, int x, int y);
+
+    // =====================================================================
+    // Hyperlink interface
+    // =====================================================================
+
+    int GetEndIndex(string objectPath);
+    int GetStartIndex(string objectPath);
+    bundle GetAnchor(string objectPath, int anchorIndex);
+    bundle GetAnchorUri(string objectPath, int anchorIndex);
+    bool IsValid(string objectPath);
+
+    // =====================================================================
+    // Hypertext interface
+    // =====================================================================
+
+    int GetLinkCount(string objectPath);
+    bundle GetLink(string objectPath, int linkIndex);
+    int GetLinkIndex(string objectPath, int characterOffset);
+
+    // =====================================================================
+    // Cache interface
+    // =====================================================================
+
+    bundle GetItems();
+
+    // =====================================================================
+    // Application interface
+    // =====================================================================
+
+    string GetToolkitName(string objectPath);
+    string GetVersion(string objectPath);
+
+    // =====================================================================
+    // Signals (as delegate callbacks)
+    // =====================================================================
+
+    // Object signals
+    delegate void OnPropertyChanged(string objectPath, string interfaceName, string property,
+                                    int detail1, int detail2, bundle data, bundle sender);
+    delegate void OnStateChanged(string objectPath, string state, int detail1, int detail2);
+    delegate void OnBoundsChanged(string objectPath, int x, int y, int w, int h);
+    delegate void OnWindowEvent(string objectPath, string event, int detail1);
+
+    // =====================================================================
+    // Status interface (replaces org.a11y.Status)
+    // =====================================================================
+
+    bool GetIsEnabled();
+    bool GetScreenReaderEnabled();
+    delegate void OnIsEnabledChanged(bool enabled);
+    delegate void OnScreenReaderEnabledChanged(bool enabled);
+
+    // =====================================================================
+    // Registry interface
+    // =====================================================================
+
+    array<bundle> GetRegisteredEvents();
+    delegate void OnEventListenerRegistered();
+    delegate void OnEventListenerDeregistered();
+
+    // =====================================================================
+    // Key events (device event controller)
+    // =====================================================================
+
+    bool NotifyListenersSync(int keyType, int keyCode, int timeStamp, string keyName, bool isText);
+
+    // =====================================================================
+    // Direct reading (TTS)
+    // =====================================================================
+
+    bundle ReadCommand(string text, bool discardable);
+    void PauseResume(bool pause);
+    void StopReading(bool alsoNonDiscardable);
+    delegate void OnReadingStateChanged(int readingId, string state);
+}

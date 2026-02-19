@@ -34,6 +34,9 @@
 #include <accessibility/internal/bridge/ipc/ipc-registry-client.h>
 #include <accessibility/internal/bridge/ipc/ipc-server.h>
 #include <accessibility/internal/bridge/ipc/ipc-transport-factory.h>
+#ifdef ENABLE_TIDL_BACKEND
+#include <accessibility/internal/bridge/tidl/tidl-interface-description.h>
+#endif
 
 namespace Accessibility
 {
@@ -196,17 +199,16 @@ public:
    * @brief Adds function to interface description.
    *
    * Casts the abstract InterfaceDescription to the concrete backend type
-   * (e.g. DBusInterfaceDescription) to register the method handler.
+   * (DBusInterfaceDescription or TidlInterfaceDescription) to register
+   * the method handler.
    */
   template<typename SELF, typename... RET, typename... ARGS>
   void AddFunctionToInterface(
     Ipc::InterfaceDescription& desc, const std::string& funcName, DBus::ValueOrError<RET...> (SELF::*funcPtr)(ARGS...))
   {
-    auto& dbusDesc = static_cast<DBus::DBusInterfaceDescription&>(desc);
     if(auto self = dynamic_cast<SELF*>(this))
-      dbusDesc.addMethod<DBus::ValueOrError<RET...>(ARGS...)>(
-        funcName,
-        [=](ARGS... args) -> DBus::ValueOrError<RET...>
+    {
+      auto callback = [=](ARGS... args) -> DBus::ValueOrError<RET...>
       {
         try
         {
@@ -216,7 +218,15 @@ public:
         {
           return DBus::Error{e.what()};
         }
-      });
+      };
+#ifdef ENABLE_TIDL_BACKEND
+      auto& tidlDesc = static_cast<Ipc::Tidl::TidlInterfaceDescription&>(desc);
+      tidlDesc.addMethod<DBus::ValueOrError<RET...>(ARGS...)>(funcName, callback);
+#else
+      auto& dbusDesc = static_cast<DBus::DBusInterfaceDescription&>(desc);
+      dbusDesc.addMethod<DBus::ValueOrError<RET...>(ARGS...)>(funcName, callback);
+#endif
+    }
   }
 
   /**
@@ -227,10 +237,9 @@ public:
                                  const std::string&         funcName,
                                  T (SELF::*funcPtr)())
   {
-    auto& dbusDesc = static_cast<DBus::DBusInterfaceDescription&>(desc);
     if(auto self = dynamic_cast<SELF*>(this))
-      dbusDesc.addProperty<T>(funcName,
-                          [=]() -> DBus::ValueOrError<T>
+    {
+      auto getter = [=]() -> DBus::ValueOrError<T>
       {
         try
         {
@@ -240,8 +249,15 @@ public:
         {
           return DBus::Error{e.what()};
         }
-      },
-                          {});
+      };
+#ifdef ENABLE_TIDL_BACKEND
+      auto& tidlDesc = static_cast<Ipc::Tidl::TidlInterfaceDescription&>(desc);
+      tidlDesc.addProperty<T>(funcName, getter, {});
+#else
+      auto& dbusDesc = static_cast<DBus::DBusInterfaceDescription&>(desc);
+      dbusDesc.addProperty<T>(funcName, getter, {});
+#endif
+    }
   }
 
   /**
@@ -252,9 +268,9 @@ public:
                                  const std::string&         funcName,
                                  void (SELF::*funcPtr)(T))
   {
-    auto& dbusDesc = static_cast<DBus::DBusInterfaceDescription&>(desc);
     if(auto self = dynamic_cast<SELF*>(this))
-      dbusDesc.addProperty<T>(funcName, {}, [=](T t) -> DBus::ValueOrError<void>
+    {
+      auto setter = [=](T t) -> DBus::ValueOrError<void>
       {
         try
         {
@@ -265,7 +281,15 @@ public:
         {
           return DBus::Error{e.what()};
         }
-      });
+      };
+#ifdef ENABLE_TIDL_BACKEND
+      auto& tidlDesc = static_cast<Ipc::Tidl::TidlInterfaceDescription&>(desc);
+      tidlDesc.addProperty<T>(funcName, {}, setter);
+#else
+      auto& dbusDesc = static_cast<DBus::DBusInterfaceDescription&>(desc);
+      dbusDesc.addProperty<T>(funcName, {}, setter);
+#endif
+    }
   }
 
   /**
@@ -277,11 +301,9 @@ public:
                                     T1 (SELF::*funcPtrGet)(),
                                     DBus::ValueOrError<void> (SELF::*funcPtrSet)(T))
   {
-    auto& dbusDesc = static_cast<DBus::DBusInterfaceDescription&>(desc);
     if(auto self = dynamic_cast<SELF*>(this))
-      dbusDesc.addProperty<T>(
-        funcName,
-        [=]() -> DBus::ValueOrError<T>
+    {
+      auto getter = [=]() -> DBus::ValueOrError<T>
       {
         try
         {
@@ -291,8 +313,8 @@ public:
         {
           return DBus::Error{e.what()};
         }
-      },
-        [=](T t) -> DBus::ValueOrError<void>
+      };
+      auto setter = [=](T t) -> DBus::ValueOrError<void>
       {
         try
         {
@@ -303,7 +325,15 @@ public:
         {
           return DBus::Error{e.what()};
         }
-      });
+      };
+#ifdef ENABLE_TIDL_BACKEND
+      auto& tidlDesc = static_cast<Ipc::Tidl::TidlInterfaceDescription&>(desc);
+      tidlDesc.addProperty<T>(funcName, getter, setter);
+#else
+      auto& dbusDesc = static_cast<DBus::DBusInterfaceDescription&>(desc);
+      dbusDesc.addProperty<T>(funcName, getter, setter);
+#endif
+    }
   }
 
   /**
@@ -315,11 +345,9 @@ public:
                                     T1 (SELF::*funcPtrGet)(),
                                     void (SELF::*funcPtrSet)(T))
   {
-    auto& dbusDesc = static_cast<DBus::DBusInterfaceDescription&>(desc);
     if(auto self = dynamic_cast<SELF*>(this))
-      dbusDesc.addProperty<T>(
-        funcName,
-        [=]() -> DBus::ValueOrError<T>
+    {
+      auto getter = [=]() -> DBus::ValueOrError<T>
       {
         try
         {
@@ -329,8 +357,8 @@ public:
         {
           return DBus::Error{e.what()};
         }
-      },
-        [=](T t) -> DBus::ValueOrError<void>
+      };
+      auto setter = [=](T t) -> DBus::ValueOrError<void>
       {
         try
         {
@@ -341,7 +369,15 @@ public:
         {
           return DBus::Error{e.what()};
         }
-      });
+      };
+#ifdef ENABLE_TIDL_BACKEND
+      auto& tidlDesc = static_cast<Ipc::Tidl::TidlInterfaceDescription&>(desc);
+      tidlDesc.addProperty<T>(funcName, getter, setter);
+#else
+      auto& dbusDesc = static_cast<DBus::DBusInterfaceDescription&>(desc);
+      dbusDesc.addProperty<T>(funcName, getter, setter);
+#endif
+    }
   }
 
   /**

@@ -11,6 +11,7 @@ SET( DALI_ACCESSIBILITY_VERSION 0.1.0 )
 
 # Build options
 OPTION( ENABLE_ATSPI       "Enable AT-SPI accessibility" ON )
+OPTION( ENABLE_TIDL        "Use TIDL (rpc_port) instead of D-Bus" OFF )
 OPTION( ENABLE_PKG_CONFIGURE "Use pkgconfig" ON )
 OPTION( ENABLE_EXPORTALL   "Enable Export all symbols" OFF )
 OPTION( ENABLE_DEBUG       "Enable Debug" OFF )
@@ -45,9 +46,17 @@ IF( ENABLE_PKG_CONFIGURE )
   ELSE()
     SET( gdbus_available OFF )
   ENDIF()
+
+  PKG_CHECK_MODULES( RPC_PORT rpc-port )
+  IF( RPC_PORT_FOUND )
+    SET( tidl_available ON )
+  ELSE()
+    SET( tidl_available OFF )
+  ENDIF()
 ELSE()
   SET( eldbus_available OFF )
   SET( gdbus_available OFF )
+  SET( tidl_available OFF )
 ENDIF()
 
 # Source tree path variables
@@ -68,7 +77,17 @@ SET( SOURCES
 
 IF( ENABLE_ATSPI )
   SET( SOURCES ${SOURCES} ${accessibility_common_atspi_bridge_src_files} )
-  IF( eldbus_available )
+  IF( ENABLE_TIDL )
+    # TIDL backend: direct P2P via rpc_port (Tizen native)
+    SET( SOURCES ${SOURCES} ${accessibility_common_tidl_src_files} )
+    # TIDL still needs a D-Bus stub for types/serialization used in bridge modules
+    SET( SOURCES ${SOURCES} ${accessibility_common_dbus_stub_src_files} )
+    SET( DBUS_BACKEND "tidl (Tizen native P2P)" )
+    ADD_DEFINITIONS( -DENABLE_TIDL_BACKEND )
+    IF( tidl_available )
+      INCLUDE_DIRECTORIES( ${RPC_PORT_INCLUDE_DIRS} )
+    ENDIF()
+  ELSEIF( eldbus_available )
     SET( SOURCES ${SOURCES} ${accessibility_common_dbus_tizen_src_files} )
     SET( DBUS_BACKEND "eldbus (EFL/Tizen)" )
   ELSEIF( gdbus_available )
@@ -119,12 +138,16 @@ TARGET_COMPILE_DEFINITIONS( ${name} PRIVATE BUILDING_ACCESSIBILITY_COMMON )
 # Link dependencies -- no external toolkit libraries required
 SET( DALI_ACCESSIBILITY_LDFLAGS "" )
 
-IF( ENABLE_ATSPI AND eldbus_available )
+IF( ENABLE_ATSPI AND ENABLE_TIDL AND tidl_available )
+  SET( DALI_ACCESSIBILITY_LDFLAGS ${DALI_ACCESSIBILITY_LDFLAGS}
+    ${RPC_PORT_LDFLAGS}
+  )
+ELSEIF( ENABLE_ATSPI AND eldbus_available AND NOT ENABLE_TIDL )
   SET( DALI_ACCESSIBILITY_LDFLAGS ${DALI_ACCESSIBILITY_LDFLAGS}
     ${ELDBUS_LDFLAGS}
   )
   INCLUDE_DIRECTORIES( ${ELDBUS_INCLUDE_DIRS} )
-ELSEIF( ENABLE_ATSPI AND gdbus_available )
+ELSEIF( ENABLE_ATSPI AND gdbus_available AND NOT ENABLE_TIDL )
   SET( DALI_ACCESSIBILITY_LDFLAGS ${DALI_ACCESSIBILITY_LDFLAGS}
     ${GIO_LDFLAGS}
   )
@@ -185,6 +208,9 @@ IF( BUILD_TESTS )
     ${accessibility_common_api_src_files}
     ${accessibility_common_internal_dir}/bridge/bridge-platform.cpp
   )
+  IF( ENABLE_TIDL )
+    SET( TEST_BRIDGE_SOURCES ${TEST_BRIDGE_SOURCES} ${accessibility_common_tidl_src_files} )
+  ENDIF()
   ADD_EXECUTABLE( accessibility-test
     ${TEST_BRIDGE_SOURCES}
     ${accessibility_common_root}/test/mock/mock-dbus-wrapper.cpp
@@ -192,6 +218,9 @@ IF( BUILD_TESTS )
     ${accessibility_common_root}/test/test-app.cpp
   )
   TARGET_INCLUDE_DIRECTORIES( accessibility-test PRIVATE ${accessibility_common_root} )
+  IF( ENABLE_TIDL )
+    TARGET_COMPILE_DEFINITIONS( accessibility-test PRIVATE ENABLE_TIDL_BACKEND )
+  ENDIF()
 ENDIF()
 
 # Accessibility Inspector
@@ -373,7 +402,8 @@ MESSAGE( STATUS "" )
 MESSAGE( STATUS "Configuration:" )
 MESSAGE( STATUS "  Prefix:                   ${PREFIX}" )
 MESSAGE( STATUS "  Enable AT-SPI:            ${ENABLE_ATSPI}" )
-MESSAGE( STATUS "  D-Bus backend:            ${DBUS_BACKEND}" )
+MESSAGE( STATUS "  Enable TIDL:              ${ENABLE_TIDL}" )
+MESSAGE( STATUS "  IPC backend:              ${DBUS_BACKEND}" )
 MESSAGE( STATUS "  Enable Debug:             ${ENABLE_DEBUG}" )
 MESSAGE( STATUS "  Enable Coverage:          ${ENABLE_COVERAGE}" )
 MESSAGE( STATUS "  Build Tests:              ${BUILD_TESTS}" )

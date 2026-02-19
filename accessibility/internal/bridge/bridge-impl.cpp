@@ -28,7 +28,11 @@
 #include <accessibility/api/log.h>
 #include <accessibility/api/accessible.h>
 #include <accessibility/internal/bridge/accessibility-common.h>
+#ifdef ENABLE_TIDL_BACKEND
+#include <accessibility/internal/bridge/tidl/tidl-transport-factory.h>
+#else
 #include <accessibility/internal/bridge/dbus/dbus-transport-factory.h>
+#endif
 #include <accessibility/internal/bridge/bridge-accessible.h>
 #include <accessibility/internal/bridge/bridge-action.h>
 #include <accessibility/internal/bridge/bridge-application.h>
@@ -92,7 +96,11 @@ class BridgeImpl : public virtual BridgeBase,
 public:
   BridgeImpl()
   {
+#ifdef ENABLE_TIDL_BACKEND
+    mTransportFactory = std::make_unique<Ipc::TidlTransportFactory>();
+#else
     mTransportFactory = std::make_unique<Ipc::DbusTransportFactory>();
+#endif
   }
   ~BridgeImpl()
   {
