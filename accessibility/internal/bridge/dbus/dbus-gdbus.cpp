@@ -219,6 +219,11 @@ struct GDBusWrapper : public DBusWrapper
 
   ~GDBusWrapper()
   {
+    for(auto& kv : mSubtreeHandlers)
+    {
+      delete kv.second;
+    }
+    mSubtreeHandlers.clear();
   }
 
   // ---------------------------------------------------------------------------
@@ -302,6 +307,9 @@ struct GDBusWrapper : public DBusWrapper
 
     // Signature tracking for write mode
     std::string writtenSignature;
+
+    // GVariant type string of this builder (used to derive child types)
+    std::string builderTypeString;
 
     MessageIterImpl() = default;
 
@@ -489,7 +497,7 @@ struct GDBusWrapper : public DBusWrapper
     GError*    err   = nullptr;
     GDBusProxy* proxy = g_dbus_proxy_new_sync(
       connImpl->conn,
-      G_DBUS_PROXY_FLAGS_DO_NOT_LOAD_PROPERTIES,
+      static_cast<GDBusProxyFlags>(G_DBUS_PROXY_FLAGS_DO_NOT_LOAD_PROPERTIES | G_DBUS_PROXY_FLAGS_DO_NOT_AUTO_START),
       nullptr,
       o->busName.c_str(),
       o->path.c_str(),
@@ -778,6 +786,7 @@ struct GDBusWrapper : public DBusWrapper
         std::string fullSig = "a" + sig;
         GVariantType* vtype = g_variant_type_new(fullSig.c_str());
         child->builder = g_variant_builder_new(vtype);
+        child->builderTypeString = fullSig;
         g_variant_type_free(vtype);
         break;
       }
@@ -789,7 +798,22 @@ struct GDBusWrapper : public DBusWrapper
       case 'e': // dict entry
       case '{':
       {
-        std::string fullSig = "{" + sig + "}";
+        std::string fullSig;
+        if(!sig.empty())
+        {
+          fullSig = "{" + sig + "}";
+        }
+        else if(!parentIter->builderTypeString.empty() &&
+                parentIter->builderTypeString[0] == 'a' &&
+                parentIter->builderTypeString.size() > 1)
+        {
+          // Derive dict entry type from parent array type (e.g. "a{si}" → "{si}")
+          fullSig = parentIter->builderTypeString.substr(1);
+        }
+        else
+        {
+          fullSig = "{sv}"; // fallback
+        }
         GVariantType* vtype = g_variant_type_new(fullSig.c_str());
         child->builder = g_variant_builder_new(vtype);
         g_variant_type_free(vtype);
@@ -965,8 +989,21 @@ struct GDBusWrapper : public DBusWrapper
       m->bodyBuilder = nullptr;
     }
 
-    GError*  err    = nullptr;
-    GVariant* result = g_dbus_connection_call_sync(
+    // Use async call + main context iteration instead of
+    // g_dbus_connection_call_sync. The sync version pushes a temporary
+    // GMainContext which prevents server-side method handlers from
+    // being dispatched (they are registered on the default context).
+    // By iterating the default context ourselves, both handler dispatch
+    // and reply delivery work correctly.
+    struct SyncCallData
+    {
+      GVariant* result   = nullptr;
+      GError*   error    = nullptr;
+      bool      complete = false;
+    };
+    SyncCallData data;
+
+    g_dbus_connection_call(
       connImpl->conn,
       m->destination.c_str(),
       m->path.c_str(),
@@ -977,16 +1014,29 @@ struct GDBusWrapper : public DBusWrapper
       G_DBUS_CALL_FLAGS_NONE,
       GDBUS_CALL_TIMEOUT_MS,
       nullptr,
-      &err);
+      [](GObject* source, GAsyncResult* res, gpointer userData)
+      {
+        auto* d   = static_cast<SyncCallData*>(userData);
+        d->result = g_dbus_connection_call_finish(
+          G_DBUS_CONNECTION(source), res, &d->error);
+        d->complete = true;
+      },
+      &data);
+
+    // Pump the default main context until the call completes.
+    while(!data.complete)
+    {
+      g_main_context_iteration(nullptr, TRUE);
+    }
 
     auto reply = std::make_shared<MessageImpl>();
-    if(err)
+    if(data.error)
     {
-      reply->error = err;
+      reply->error = data.error;
     }
-    if(result)
+    if(data.result)
     {
-      reply->body     = result;
+      reply->body     = data.result;
       reply->ownsBody = true;
     }
     return reply;
@@ -1245,6 +1295,117 @@ struct GDBusWrapper : public DBusWrapper
     GDBusNodeInfo*                                             introspectionData = nullptr;
   };
 
+  /**
+   * @brief Multi-interface subtree handler for fallback registrations.
+   *
+   * GDBus only allows one subtree registration per path. The bridge registers
+   * many interfaces at "/" with fallback=true. This structure collects all
+   * interfaces and manages a single subtree that dispatches by interface name.
+   */
+  struct SubtreeHandler
+  {
+    GDBusConnection*                                              conn     = nullptr;
+    guint                                                         regId    = 0;
+    std::string                                                   path;
+    std::unordered_map<std::string, InterfaceRegistration*>       interfaces; // keyed by interface name
+
+    // Static vtable shared by all interfaces — dispatch routes by userData
+    static const GDBusInterfaceVTable ifaceVtable;
+
+    // Subtree vtable — stored as member so it outlives the registration
+    static const GDBusSubtreeVTable subtreeVtable;
+
+    ~SubtreeHandler()
+    {
+      Unregister();
+      for(auto& kv : interfaces)
+      {
+        if(kv.second->introspectionData)
+          g_dbus_node_info_unref(kv.second->introspectionData);
+        delete kv.second;
+      }
+    }
+
+    void Unregister()
+    {
+      if(regId > 0 && conn)
+      {
+        g_dbus_connection_unregister_subtree(conn, regId);
+        regId = 0;
+      }
+    }
+
+    bool Reregister()
+    {
+      Unregister();
+
+      GError* err = nullptr;
+      regId = g_dbus_connection_register_subtree(
+        conn,
+        path.c_str(),
+        &subtreeVtable,
+        G_DBUS_SUBTREE_FLAGS_DISPATCH_TO_UNENUMERATED_NODES,
+        this,
+        nullptr,
+        &err);
+
+      if(err || regId == 0)
+      {
+        ACCESSIBILITY_LOG_ERROR("g_dbus_connection_register_subtree failed: %s\n", err ? err->message : "unknown");
+        if(err) g_error_free(err);
+        return false;
+      }
+      return true;
+    }
+
+    // Subtree callbacks — these are static functions referenced by subtreeVtable
+    static gchar** Enumerate(GDBusConnection*, const gchar*, const gchar*, gpointer)
+    {
+      return nullptr;
+    }
+
+    static GDBusInterfaceInfo** Introspect(GDBusConnection*, const gchar*, const gchar*, const gchar*, gpointer userData)
+    {
+      auto* self = static_cast<SubtreeHandler*>(userData);
+      auto count = self->interfaces.size();
+      if(count == 0) return nullptr;
+
+      auto** result = g_new0(GDBusInterfaceInfo*, count + 1);
+      size_t i = 0;
+      for(auto& kv : self->interfaces)
+      {
+        if(kv.second->introspectionData && kv.second->introspectionData->interfaces && kv.second->introspectionData->interfaces[0])
+        {
+          result[i++] = g_dbus_interface_info_ref(kv.second->introspectionData->interfaces[0]);
+        }
+      }
+      return result;
+    }
+
+    static const GDBusInterfaceVTable* Dispatch(GDBusConnection*, const gchar*, const gchar*,
+                                                const gchar* interfaceName, const gchar*,
+                                                gpointer* outUserData, gpointer userData)
+    {
+      auto* self = static_cast<SubtreeHandler*>(userData);
+      auto  it = self->interfaces.find(interfaceName ? interfaceName : "");
+      if(it != self->interfaces.end())
+      {
+        *outUserData = it->second;
+        return &ifaceVtable;
+      }
+      // Fallback: try first interface if interface name is not specified
+      if(!self->interfaces.empty())
+      {
+        *outUserData = self->interfaces.begin()->second;
+        return &ifaceVtable;
+      }
+      return nullptr;
+    }
+  };
+
+  // Map of fallback path → SubtreeHandler (owned by the GDBusWrapper instance)
+  std::unordered_map<std::string, SubtreeHandler*> mSubtreeHandlers;
+
   static void handleMethodCall(GDBusConnection*       connection,
                                const gchar*           sender,
                                const gchar*           objectPath,
@@ -1412,9 +1573,22 @@ struct GDBusWrapper : public DBusWrapper
     auto srcIter = std::make_shared<MessageIterImpl>();
     if(value)
     {
-      srcIter->variant     = value;
-      srcIter->ownsVariant = false;
-      srcIter->numChildren = g_variant_is_container(value) ? g_variant_n_children(value) : 0;
+      // GDBus passes the unwrapped property value (e.g. a bare string 's',
+      // not a container). The iter-based deserialization expects to read
+      // children from a container, so wrap scalar values in a tuple.
+      if(g_variant_is_container(value))
+      {
+        srcIter->variant     = value;
+        srcIter->ownsVariant = false;
+        srcIter->numChildren = g_variant_n_children(value);
+      }
+      else
+      {
+        GVariant* wrapped    = g_variant_new_tuple(&value, 1);
+        srcIter->variant     = wrapped;
+        srcIter->ownsVariant = true;
+        srcIter->numChildren = 1;
+      }
     }
 
     DBus::DBusServer::CurrentObjectSetter currentObjectSetter(conn, reqMsg->path);
@@ -1444,22 +1618,44 @@ struct GDBusWrapper : public DBusWrapper
     auto reg = new InterfaceRegistration();
     reg->connection = std::static_pointer_cast<ConnectionImpl>(connection);
 
-    // Build GDBus introspection XML
+    // Build GDBus introspection XML.
+    // Argument names come from C++ type names (e.g. "ValueOrError<uint8_t>")
+    // which contain characters that need XML escaping.
+    auto xmlEscape = [](const std::string& s) -> std::string {
+      std::string r;
+      r.reserve(s.size());
+      for(char c : s)
+      {
+        switch(c)
+        {
+          case '&':  r += "&amp;";  break;
+          case '<':  r += "&lt;";   break;
+          case '>':  r += "&gt;";   break;
+          case '\'': r += "&apos;"; break;
+          case '"':  r += "&quot;"; break;
+          default:   r += c;        break;
+        }
+      }
+      return r;
+    };
+
     std::ostringstream xml;
     xml << "<node>"
         << "<interface name='" << interfaceName << "'>";
 
+    // In MethodInfo/SignalInfo, arg pairs are (signature, name) — i.e.
+    // first = D-Bus type signature, second = human-readable name.
     for(auto& method : dscrMethods)
     {
       auto key = method.memberName;
       xml << "<method name='" << method.memberName << "'>";
       for(auto& arg : method.in)
       {
-        xml << "<arg name='" << arg.first << "' type='" << arg.second << "' direction='in'/>";
+        xml << "<arg name='" << xmlEscape(arg.second) << "' type='" << arg.first << "' direction='in'/>";
       }
       for(auto& arg : method.out)
       {
-        xml << "<arg name='" << arg.first << "' type='" << arg.second << "' direction='out'/>";
+        xml << "<arg name='" << xmlEscape(arg.second) << "' type='" << arg.first << "' direction='out'/>";
       }
       xml << "</method>";
       reg->methodsMap[key] = std::move(method);
@@ -1485,7 +1681,7 @@ struct GDBusWrapper : public DBusWrapper
       xml << "<signal name='" << sig.memberName << "'>";
       for(auto& arg : sig.args)
       {
-        xml << "<arg name='" << arg.first << "' type='" << arg.second << "'/>";
+        xml << "<arg name='" << xmlEscape(arg.second) << "' type='" << arg.first << "'/>";
       }
       xml << "</signal>";
     }
@@ -1525,55 +1721,49 @@ struct GDBusWrapper : public DBusWrapper
 
     if(fallback)
     {
-      // Use subtree for fallback registration
-      static const GDBusSubtreeVTable subtreeVtable = {
-        // enumerate
-        [](GDBusConnection*, const gchar*, const gchar*, gpointer) -> gchar** {
-          return nullptr;
-        },
-        // introspect
-        [](GDBusConnection*, const gchar*, const gchar*, const gchar*, gpointer userData) -> GDBusInterfaceInfo** {
-          auto* r = static_cast<InterfaceRegistration*>(userData);
-          if(!r->introspectionData || !r->introspectionData->interfaces || !r->introspectionData->interfaces[0])
-            return nullptr;
-          auto** result = g_new0(GDBusInterfaceInfo*, 2);
-          result[0] = g_dbus_interface_info_ref(r->introspectionData->interfaces[0]);
-          return result;
-        },
-        // dispatch
-        [](GDBusConnection*, const gchar*, const gchar*, const gchar*, const gchar*, gpointer* outUserData, gpointer userData) -> const GDBusInterfaceVTable* {
-          // Pass through the registration user data to the vtable callbacks
-          *outUserData = userData;
-          return &vtable;
-        },
-        {0}
-      };
-
-      guint regId = g_dbus_connection_register_subtree(
-        c->conn,
-        pathName.c_str(),
-        &subtreeVtable,
-        G_DBUS_SUBTREE_FLAGS_DISPATCH_TO_UNENUMERATED_NODES,
-        reg,
-        nullptr,
-        &err);
-
-      if(err || regId == 0)
+      // GDBus subtree registration at "/" doesn't match child paths because
+      // its path matching checks that path[strlen(subtree_path)] == '/' or '\0'.
+      // For subtree_path="/", path[1] is the first path char (e.g., 'o' in "/org/..."),
+      // which never matches. Since all AT-SPI accessible objects use paths under
+      // ATSPI_PREFIX_PATH, register the subtree there instead.
+      std::string subtreePath = pathName;
+      if(subtreePath == "/")
       {
-        ACCESSIBILITY_LOG_ERROR("g_dbus_connection_register_subtree failed: %s\n", err ? err->message : "unknown");
-        if(err)
-          g_error_free(err);
-        g_dbus_node_info_unref(reg->introspectionData);
-        delete reg;
-        return;
+        subtreePath = ATSPI_PREFIX_PATH;
+        // Remove trailing slash — subtree path must not end with '/'
+        if(!subtreePath.empty() && subtreePath.back() == '/')
+          subtreePath.pop_back();
       }
 
-      auto* conn = c->conn;
-      destructors.push_back([conn, regId, reg]()
+      // GDBus only allows one subtree per path. Use SubtreeHandler to
+      // merge all interfaces registered at the same fallback path into
+      // a single subtree that dispatches by interface name.
+      auto& handler = mSubtreeHandlers[subtreePath];
+      if(!handler)
       {
-        g_dbus_connection_unregister_subtree(conn, regId);
-        g_dbus_node_info_unref(reg->introspectionData);
-        delete reg;
+        handler = new SubtreeHandler();
+        handler->conn = c->conn;
+        handler->path = subtreePath;
+      }
+
+      // Add the new interface to the handler
+      handler->interfaces[interfaceName] = reg;
+
+      // Re-register the subtree with the updated set of interfaces
+      handler->Reregister();
+
+      auto* handlerPtr = handler;
+      destructors.push_back([handlerPtr, interfaceName]()
+      {
+        handlerPtr->interfaces.erase(interfaceName);
+        if(handlerPtr->interfaces.empty())
+        {
+          handlerPtr->Unregister();
+        }
+        else
+        {
+          handlerPtr->Reregister();
+        }
       });
     }
     else
@@ -1586,7 +1776,6 @@ struct GDBusWrapper : public DBusWrapper
         reg,
         nullptr,
         &err);
-
       if(err || regId == 0)
       {
         ACCESSIBILITY_LOG_ERROR("g_dbus_connection_register_object failed: %s\n", err ? err->message : "unknown");
@@ -1671,6 +1860,24 @@ struct GDBusWrapper : public DBusWrapper
       },
       static_cast<GConnectFlags>(0));
   }
+};
+
+// =============================================================================
+// SubtreeHandler static vtable definitions
+// =============================================================================
+
+const GDBusInterfaceVTable GDBusWrapper::SubtreeHandler::ifaceVtable = {
+  GDBusWrapper::handleMethodCall,
+  GDBusWrapper::handleGetProperty,
+  GDBusWrapper::handleSetProperty,
+  {nullptr}
+};
+
+const GDBusSubtreeVTable GDBusWrapper::SubtreeHandler::subtreeVtable = {
+  SubtreeHandler::Enumerate,
+  SubtreeHandler::Introspect,
+  SubtreeHandler::Dispatch,
+  {nullptr}
 };
 
 // =============================================================================

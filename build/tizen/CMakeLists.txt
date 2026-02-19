@@ -274,6 +274,45 @@ IF( BUILD_INSPECTOR_LIB )
     DESTINATION ${DEV_INCLUDE_PATH}/cpp-httplib )
 ENDIF()
 
+# GDBus backend tests (require dbus-daemon and gio-2.0)
+OPTION( BUILD_GDBUS_TESTS "Build GDBus backend tests (requires dbus-daemon)" OFF )
+IF( BUILD_GDBUS_TESTS )
+  IF( NOT ENABLE_PKG_CONFIGURE )
+    MESSAGE( FATAL_ERROR "BUILD_GDBUS_TESTS requires ENABLE_PKG_CONFIGURE=ON (needs gio-2.0)" )
+  ENDIF()
+  IF( NOT GIO_FOUND )
+    MESSAGE( FATAL_ERROR "BUILD_GDBUS_TESTS requires gio-2.0 (brew install dbus on macOS)" )
+  ENDIF()
+
+  SET( GDBUS_TEST_BRIDGE_SOURCES
+    ${accessibility_common_atspi_bridge_src_files}
+    ${accessibility_common_dbus_gdbus_src_files}
+    ${accessibility_common_api_src_files}
+    ${accessibility_common_internal_dir}/bridge/bridge-platform.cpp
+  )
+
+  ADD_EXECUTABLE( accessibility-gdbus-unit-test
+    ${GDBUS_TEST_BRIDGE_SOURCES}
+    ${accessibility_common_root}/test/gdbus/test-gdbus-unit.cpp
+  )
+  TARGET_INCLUDE_DIRECTORIES( accessibility-gdbus-unit-test PRIVATE
+    ${accessibility_common_root}
+    ${GIO_INCLUDE_DIRS}
+  )
+  TARGET_LINK_LIBRARIES( accessibility-gdbus-unit-test ${GIO_LDFLAGS} )
+
+  ADD_EXECUTABLE( accessibility-gdbus-integration-test
+    ${GDBUS_TEST_BRIDGE_SOURCES}
+    ${accessibility_common_root}/test/test-accessible.cpp
+    ${accessibility_common_root}/test/gdbus/test-gdbus-integration.cpp
+  )
+  TARGET_INCLUDE_DIRECTORIES( accessibility-gdbus-integration-test PRIVATE
+    ${accessibility_common_root}
+    ${GIO_INCLUDE_DIRS}
+  )
+  TARGET_LINK_LIBRARIES( accessibility-gdbus-integration-test ${GIO_LDFLAGS} )
+ENDIF()
+
 # Direct Web Inspector (standalone binary using DirectQueryEngine)
 OPTION( BUILD_WEB_INSPECTOR_DIRECT "Build direct web inspector (no D-Bus)" OFF )
 IF( BUILD_WEB_INSPECTOR_DIRECT )
@@ -311,4 +350,5 @@ MESSAGE( STATUS "  Build Inspector:          ${BUILD_INSPECTOR}" )
 MESSAGE( STATUS "  Build Web Inspector:      ${BUILD_WEB_INSPECTOR}" )
 MESSAGE( STATUS "  Build Inspector Lib:      ${BUILD_INSPECTOR_LIB}" )
 MESSAGE( STATUS "  Build Direct Inspector:   ${BUILD_WEB_INSPECTOR_DIRECT}" )
+MESSAGE( STATUS "  Build GDBus Tests:        ${BUILD_GDBUS_TESTS}" )
 MESSAGE( STATUS "" )
