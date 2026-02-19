@@ -65,7 +65,7 @@ gantt
 | **1** | accessibility-common을 DALi에서 분리 | **DONE** |
 | **2** | Bidirectional IPC 추상화 | **DONE** |
 | **2.5** | eldbus → GDBus migration | TODO |
-| **2.6** | TIDL IPC backend | TODO |
+| **2.6** | TIDL IPC backend | **Stage A DONE** (scaffold), Stage B/C require Tizen SDK |
 | **2.7** | Tree embedding 테스트 | TODO |
 | **3** | AccessibilityService base class | TODO |
 | **4** | Screen reader C++ rewrite | TODO |
