@@ -27,7 +27,9 @@
 #include <accessibility/api/accessibility-bridge.h>
 #include <accessibility/internal/bridge/accessibility-common.h>
 #include <accessibility/internal/bridge/bridge-platform.h>
+#ifndef INSPECTOR_NO_MOCK_DBUS
 #include <test/mock/mock-dbus-wrapper.h>
+#endif
 
 namespace InspectorEngine
 {
@@ -164,6 +166,10 @@ AccessibilityQueryEngine::DemoTree AccessibilityQueryEngine::BuildDemoTree()
 
 bool AccessibilityQueryEngine::Initialize()
 {
+#ifdef INSPECTOR_NO_MOCK_DBUS
+  fprintf(stderr, "Initialize() unavailable: built without MockDBusWrapper.\n");
+  return false;
+#else
   // Step 1: Install MockDBusWrapper
   auto mockWrapper = std::make_unique<MockDBusWrapper>();
   DBusWrapper::Install(std::move(mockWrapper));
@@ -220,6 +226,74 @@ bool AccessibilityQueryEngine::Initialize()
 
   mBusName    = mBridge->GetBusName();
   mConnection = DBusWrapper::Installed()->eldbus_address_connection_get_impl("unix:path=/tmp/mock-atspi");
+  mRootId     = mDemo.window->GetId();
+  mFocusedId  = mDemo.menuBtn->GetId();
+
+  return true;
+#endif
+}
+
+bool AccessibilityQueryEngine::InitializeGDBus(const std::string& busAddress,
+                                                std::function<void(int)> pumpMainLoop)
+{
+  // Step 1: NO MockDBusWrapper — GDBusWrapper auto-creates when
+  // DBusWrapper::Installed() is first called.
+
+  // Step 2: Set PlatformCallbacks
+  Accessibility::PlatformCallbacks callbacks;
+  callbacks.addIdle = [](std::function<bool()> cb) -> uint32_t {
+    if(cb) cb();
+    return 1;
+  };
+  callbacks.removeIdle           = [](uint32_t) {};
+  callbacks.getToolkitVersion    = []() -> std::string { return "inspector-gdbus-1.0.0"; };
+  callbacks.getAppName           = []() -> std::string { return "GDBusInspector"; };
+  callbacks.isAdaptorAvailable   = []() -> bool { return true; };
+  callbacks.onEnableAutoInit     = []() {};
+  callbacks.createTimer          = [](uint32_t, std::function<bool()> cb) -> uint32_t {
+    if(cb) cb();
+    return 1;
+  };
+  callbacks.cancelTimer          = [](uint32_t) {};
+  callbacks.isTimerRunning       = [](uint32_t) -> bool { return false; };
+  Accessibility::SetPlatformCallbacks(callbacks);
+
+  // Step 3: Build demo tree
+  mDemo = BuildDemoTree();
+
+  // Step 4: Get bridge
+  mBridge = Accessibility::Bridge::GetCurrentBridge();
+  if(!mBridge)
+  {
+    fprintf(stderr, "FATAL: Bridge is null.\n");
+    return false;
+  }
+
+  mBridge->SetApplicationName("GDBusInspector");
+  mBridge->SetToolkitName("dali");
+
+  for(auto& acc : mDemo.all)
+  {
+    mBridge->AddAccessible(acc->GetId(), acc);
+  }
+
+  mBridge->AddTopLevelWindow(mDemo.window.get());
+
+  // Step 5: Initialize — async GDBus operations need main loop pumping
+  mBridge->Initialize();
+  pumpMainLoop(100);
+
+  mBridge->ApplicationResumed();
+  pumpMainLoop(500);
+
+  if(!mBridge->IsUp())
+  {
+    fprintf(stderr, "FATAL: Bridge failed to start (GDBus).\n");
+    return false;
+  }
+
+  mBusName    = mBridge->GetBusName();
+  mConnection = DBusWrapper::Installed()->eldbus_address_connection_get_impl(busAddress);
   mRootId     = mDemo.window->GetId();
   mFocusedId  = mDemo.menuBtn->GetId();
 

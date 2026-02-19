@@ -338,6 +338,37 @@ IF( BUILD_WEB_INSPECTOR_DIRECT )
   TARGET_LINK_LIBRARIES( accessibility-web-inspector-direct Threads::Threads )
 ENDIF()
 
+# GDBus Web Inspector (real D-Bus IPC)
+OPTION( BUILD_WEB_INSPECTOR_GDBUS "Build GDBus web inspector (real D-Bus)" OFF )
+IF( BUILD_WEB_INSPECTOR_GDBUS )
+  IF( NOT GIO_FOUND )
+    MESSAGE( FATAL_ERROR "BUILD_WEB_INSPECTOR_GDBUS requires gio-2.0 (brew install dbus on macOS)" )
+  ENDIF()
+
+  FIND_PACKAGE( Threads REQUIRED )
+
+  SET( GDBUS_WEB_INSPECTOR_SOURCES
+    ${accessibility_common_atspi_bridge_src_files}
+    ${accessibility_common_dbus_gdbus_src_files}
+    ${accessibility_common_api_src_files}
+    ${accessibility_common_internal_dir}/bridge/bridge-platform.cpp
+  )
+
+  ADD_EXECUTABLE( accessibility-web-inspector-gdbus
+    ${GDBUS_WEB_INSPECTOR_SOURCES}
+    ${accessibility_common_root}/test/test-accessible.cpp
+    ${accessibility_common_root}/tools/inspector/query-engine.cpp
+    ${accessibility_common_root}/tools/inspector/web-inspector-gdbus-main.cpp
+  )
+  TARGET_INCLUDE_DIRECTORIES( accessibility-web-inspector-gdbus PRIVATE
+    ${accessibility_common_root}
+    ${accessibility_common_root}/third-party
+    ${GIO_INCLUDE_DIRS}
+  )
+  TARGET_COMPILE_DEFINITIONS( accessibility-web-inspector-gdbus PRIVATE INSPECTOR_NO_MOCK_DBUS )
+  TARGET_LINK_LIBRARIES( accessibility-web-inspector-gdbus ${GIO_LDFLAGS} Threads::Threads )
+ENDIF()
+
 MESSAGE( STATUS "" )
 MESSAGE( STATUS "Configuration:" )
 MESSAGE( STATUS "  Prefix:                   ${PREFIX}" )
@@ -351,4 +382,5 @@ MESSAGE( STATUS "  Build Web Inspector:      ${BUILD_WEB_INSPECTOR}" )
 MESSAGE( STATUS "  Build Inspector Lib:      ${BUILD_INSPECTOR_LIB}" )
 MESSAGE( STATUS "  Build Direct Inspector:   ${BUILD_WEB_INSPECTOR_DIRECT}" )
 MESSAGE( STATUS "  Build GDBus Tests:        ${BUILD_GDBUS_TESTS}" )
+MESSAGE( STATUS "  Build GDBus Web Inspector: ${BUILD_WEB_INSPECTOR_GDBUS}" )
 MESSAGE( STATUS "" )

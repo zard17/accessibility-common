@@ -20,6 +20,7 @@
 
 // EXTERNAL INCLUDES
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
@@ -48,6 +49,20 @@ public:
    * @return true on success
    */
   bool Initialize();
+
+  /**
+   * @brief Initializes the bridge with GDBus backend (real D-Bus).
+   *
+   * Unlike Initialize() which uses MockDBusWrapper, this leaves
+   * DBusWrapper uninstalled so GDBusWrapper auto-creates.
+   * Caller must start dbus-daemon + FakeAtspiBroker before calling.
+   *
+   * @param[in] busAddress Private bus address from TestDBusFixture
+   * @param[in] pumpMainLoop Callback to pump GLib main context (iterations)
+   * @return true on success
+   */
+  bool InitializeGDBus(const std::string& busAddress,
+                       std::function<void(int)> pumpMainLoop);
 
   /**
    * @brief Shuts down the bridge.

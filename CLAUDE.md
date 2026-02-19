@@ -148,6 +148,24 @@ make -j$(nproc)
 
 Same web UI as the original web inspector at `http://localhost:8080`.
 
+## Running the GDBus Web Inspector (Real D-Bus IPC)
+
+The GDBus web inspector queries the accessibility tree through **real D-Bus IPC** — a private `dbus-daemon`, `FakeAtspiBroker`, and the GDBus backend. Every tree query goes through full D-Bus serialization/deserialization, proving the end-to-end round-trip.
+
+```bash
+cd build/tizen && mkdir -p build && cd build
+
+# Build with GDBus web inspector (requires dbus-daemon + gio-2.0)
+cmake .. -DENABLE_ATSPI=ON -DBUILD_WEB_INSPECTOR_GDBUS=ON -DENABLE_PKG_CONFIGURE=ON
+make -j$(nproc)
+
+# Run (default port 8080, or specify custom port)
+./accessibility-web-inspector-gdbus
+./accessibility-web-inspector-gdbus 9000
+```
+
+Same web UI as other inspectors at `http://localhost:8080`. The difference is under the hood: every API call traverses real D-Bus IPC through `dbus-daemon`.
+
 ## Embeddable Inspector Library
 
 A static library (`libaccessibility-inspector.a`) that can be linked into any DALi app to add a web inspector endpoint.
@@ -199,6 +217,7 @@ server.Stop();
 - `tools/inspector/web-inspector-server.h` - `InspectorEngine::WebInspectorServer` embeddable HTTP server (PIMPL, background thread).
 - `tools/inspector/web-inspector.cpp` - Original web-based inspector HTTP server with REST API.
 - `tools/inspector/web-inspector-direct-main.cpp` - Standalone direct inspector binary (TestAccessible demo tree).
+- `tools/inspector/web-inspector-gdbus-main.cpp` - GDBus web inspector binary (real D-Bus IPC round-trip).
 - `third-party/cpp-httplib/httplib.h` - Vendored cpp-httplib v0.18.3 (MIT, single-header HTTP server).
 
 ## Rules
