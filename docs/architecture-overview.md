@@ -64,9 +64,9 @@ gantt
 |-------|------|--------|
 | **1** | accessibility-common을 DALi에서 분리 | **DONE** |
 | **2** | Bidirectional IPC 추상화 | **DONE** |
-| **2.5** | eldbus → GDBus migration | TODO |
-| **2.6** | TIDL IPC backend | **Stage A DONE** (scaffold), Stage B/C require Tizen SDK |
-| **2.7** | Tree embedding 테스트 | TODO |
+| **2.5** | eldbus → GDBus migration | **DONE** |
+| **2.6** | TIDL IPC backend | **Stage A DONE** (scaffold + tidlc 코드 생성), Stage B/C는 Tizen 디바이스 필요 |
+| **2.7** | Tree embedding 테스트 | **DONE** |
 | **3** | AccessibilityService base class | TODO |
 | **4** | Screen reader C++ rewrite | TODO |
 | **5** | DALi toolkit integration | TODO |
@@ -349,7 +349,7 @@ graph TB
 
 ---
 
-## 7. Phase 2.6: TIDL Backend (TODO)
+## 7. Phase 2.6: TIDL Backend (Stage A DONE)
 
 ### Problem
 
@@ -380,6 +380,45 @@ graph LR
 | Portability | Linux/macOS | Tizen only |
 | Latency | Higher (daemon hop) | Lower (direct) |
 
+### Implementation Status
+
+#### Stage A: Scaffold (DONE, macOS)
+
+- `tidl/` 디렉터리에 10개 파일 생성 (interface description, server, factory, 5 client stubs)
+- `accessibility-service.tidl`: 모든 AT-SPI 메서드를 TIDL 인터페이스로 정의 (tidlc 검증 완료)
+- `TidlInterfaceDescription`: `DBusInterfaceDescription`과 동일한 `addMethod<T>` / `addProperty<T>` / `addSignal<ARGS...>` 템플릿 API
+- `bridge-base.h`: `#ifdef ENABLE_TIDL_BACKEND`로 concrete type cast 분기
+- CMake `ENABLE_TIDL` 옵션 + `rpc-port` pkg-config 통합
+- D-Bus 백엔드 56/56 테스트 통과 확인 (regression 없음)
+
+#### Stage B/C: Tizen 디바이스 환경에서 수행해야 할 작업
+
+macOS에서 `tidlc` 바이너리(v2.3.3)로 C++ stub/proxy 코드 생성은 가능하지만, 생성된 코드가 Tizen 플랫폼 API(`rpc_port_*`, `bundle_*`)를 ~2,000회 호출하므로 실제 IPC 테스트는 Tizen 런타임에서만 가능하다.
+
+**macOS vs Tizen 비교:**
+
+| | GDBus (Phase 2.5) | TIDL (Phase 2.6) |
+|---|---|---|
+| macOS 데몬 | `brew install dbus` → 동작 | rpc-port 데몬 없음 |
+| 라이브러리 | `libgio-2.0` macOS 빌드 있음 | `librpc-port.so` Tizen 전용 |
+| macOS IPC 테스트 | full round-trip 검증 완료 | 불가능 |
+| 런타임 의존성 | dbus-daemon | cynara + aul + app framework 전체 |
+
+**Tizen 디바이스 환경에서의 작업 목록:**
+
+1. **tidlc 코드 생성 및 빌드 검증**
+   ```bash
+   tidlc -s -l C++ -i accessibility-service.tidl -o generated/accessibility-bridge-stub
+   tidlc -p -l C++ -i accessibility-service.tidl -o generated/accessibility-bridge-proxy
+   ```
+   생성된 `ServiceBase` 클래스는 모든 TIDL 메서드에 대해 pure virtual 메서드를 제공.
+
+2. **TidlIpcServer dispatch 구현**: 생성된 `ServiceBase`를 상속하여 `TidlInterfaceDescription`에 저장된 핸들러로 dispatch. `ServiceBase::GetName(objectPath)` → `mMethods["GetName"]` callback 호출.
+
+3. **5개 Client wrapper 구현**: 생성된 proxy 클래스를 감싸서 `Ipc::StatusMonitor`, `Ipc::KeyEventForwarder` 등의 인터페이스 구현. Delegate callback → `listenXxx()` callback 연결.
+
+4. **통합 테스트**: `ENABLE_TIDL=ON`으로 빌드 후 Tizen 스크린 리더와 연동 테스트.
+
 ### Pros / Cons
 
 | Pros | Cons |
@@ -388,6 +427,7 @@ graph LR
 | Compile-time type checking (codegen) | Build complexity (tidlc) |
 | Native Tizen security (Cynara) | Requires full-stack migration (both app and AT) |
 | — | No AT-SPI compatibility with existing tools |
+| — | macOS에서 end-to-end 테스트 불가 (GDBus와 달리) |
 
 ---
 

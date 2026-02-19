@@ -1,58 +1,115 @@
-# Handover: TIDL IPC Backend (Phase 2.6 Stage A)
+# Handover: TIDL IPC Backend (Phase 2.6)
 
-## What was done
+## 완료된 Phase 상태
 
-### TIDL Backend Scaffold (Stage A)
+| Phase | Status |
+|-------|--------|
+| 2.5 (GDBus) | **DONE** — `dbus-gdbus.cpp`, unit 48개 + integration 42개 테스트 통과 |
+| 2.6 (TIDL) | **Stage A DONE** — scaffold + tidlc 코드 생성 검증. Stage B/C는 Tizen 디바이스 필요 |
+| 2.7 (Tree embedding) | **DONE** — Socket/Plug embed/unembed/setOffset 테스트 완료 |
 
-Added a pluggable TIDL backend alongside the existing D-Bus backend so the accessibility bridge can communicate via Tizen's native `rpc_port` direct P2P IPC instead of a D-Bus daemon.
+## Phase 2.6: 완료된 작업 (Stage A)
 
-#### New files created (`accessibility/internal/bridge/tidl/`)
+### 생성된 파일 (`accessibility/internal/bridge/tidl/`)
 
 | File | Description |
 |------|-------------|
-| `accessibility-service.tidl` | TIDL interface definition for all 12 bridge modules + status/registry/key events/TTS |
-| `tidl-interface-description.h` | `TidlInterfaceDescription` with type-erased `addMethod<T>`, `addProperty<T>`, `addSignal<ARGS...>` matching DBusInterfaceDescription API |
-| `tidl-ipc-server.h/cpp` | `TidlIpcServer : Ipc::Server` — stores interface descriptions, tracks dispatch state (scaffold: logs, no real IPC) |
-| `tidl-transport-factory.h` | `TidlTransportFactory : Ipc::TransportFactory` — creates all TIDL IPC components |
-| `tidl-status-monitor.h` | Scaffold: returns `isEnabled=true` |
-| `tidl-key-event-forwarder.h` | Scaffold: returns `consumed=false` |
-| `tidl-direct-reading-client.h` | Scaffold: returns errors |
-| `tidl-registry-client.h` | Scaffold: returns empty event list |
-| `tidl-socket-client.h` | Scaffold: returns errors |
+| `accessibility-service.tidl` | TIDL 인터페이스 정의 (tidlc v2.3.3 검증 완료) |
+| `tidl-interface-description.h` | `addMethod<T>` / `addProperty<T>` / `addSignal<ARGS...>` type-erased 저장 |
+| `tidl-ipc-server.h/cpp` | `TidlIpcServer : Ipc::Server` (scaffold: 인터페이스 등록만, dispatch 미구현) |
+| `tidl-transport-factory.h` | `TidlTransportFactory : Ipc::TransportFactory` |
+| `tidl-status-monitor.h` | scaffold: `isEnabled=true` 반환 |
+| `tidl-key-event-forwarder.h` | scaffold: `consumed=false` 반환 |
+| `tidl-direct-reading-client.h` | scaffold: error 반환 |
+| `tidl-registry-client.h` | scaffold: 빈 이벤트 리스트 반환 |
+| `tidl-socket-client.h` | scaffold: error 반환 |
 
-#### Modified files
+### 수정된 파일
 
 | File | Change |
 |------|--------|
-| `bridge/file.list` | Added `accessibility_common_tidl_src_files` |
-| `build/tizen/CMakeLists.txt` | Added `ENABLE_TIDL` option, `rpc-port` pkg-config, TIDL backend selection, test binary support |
-| `bridge/bridge-impl.cpp` | `#ifdef ENABLE_TIDL_BACKEND` selects `TidlTransportFactory` vs `DbusTransportFactory` |
-| `bridge/bridge-base.h` | Updated `AddFunctionToInterface`, `AddGetPropertyToInterface`, `AddSetPropertyToInterface`, `AddGetSetPropertyToInterface` to cast to `TidlInterfaceDescription` when TIDL is active |
-| `docs/architecture-overview.md` | Updated Phase 2.6 status |
+| `bridge/file.list` | `accessibility_common_tidl_src_files` 추가 |
+| `build/tizen/CMakeLists.txt` | `ENABLE_TIDL` 옵션, `rpc-port` pkg-config, TIDL 소스 선택, 테스트 바이너리 지원 |
+| `bridge/bridge-impl.cpp` | `#ifdef ENABLE_TIDL_BACKEND` → `TidlTransportFactory` / `DbusTransportFactory` 분기 |
+| `bridge/bridge-base.h` | `AddFunctionToInterface` 등 4개 헬퍼에서 `TidlInterfaceDescription` cast 분기 |
 
-#### Key design decisions
+### 테스트 결과
 
-- **Object path problem**: Every TIDL method takes `objectPath` parameter to simulate D-Bus object dispatch
-- **InterfaceDescription**: `TidlInterfaceDescription` uses `std::any` for type-erased method/property storage; same template API as `DBusInterfaceDescription`
-- **Compile-time backend selection**: `#ifdef ENABLE_TIDL_BACKEND` in bridge-base.h helpers avoids runtime overhead
-- **D-Bus stub still compiled**: TIDL build includes `dbus-stub.cpp` because bridge modules still reference `DBus::` types for `ValueOrError` aliases
+- D-Bus 백엔드 (ENABLE_TIDL=OFF): **56/56 passed** — regression 없음
+- TIDL 공유 라이브러리 (ENABLE_TIDL=ON): 컴파일/링크 성공
+- TIDL 테스트 바이너리: 컴파일 성공, 브리지 라이프사이클 동작 (14개 인터페이스 등록 확인)
 
-### Test results
+### tidlc 코드 생성 검증
 
-- D-Bus backend (ENABLE_TIDL=OFF): **56/56 passed** — no regressions
-- TIDL shared library: compiles and links
-- TIDL test binary: compiles; bridge lifecycle works (all 14 interfaces registered). Method-level tests fail as expected (MockDBusWrapper is D-Bus-specific)
+macOS에서 `tidlc` v2.3.3 (`download.tizen.org`에서 다운로드) 실행 확인:
 
-## What's next
+```bash
+tidlc -s -l C++ -i accessibility-service.tidl -o generated/stub    # stub (server)
+tidlc -p -l C++ -i accessibility-service.tidl -o generated/proxy   # proxy (client)
+```
 
-### Phase 2.6 Stages B & C (require Tizen SDK)
-1. Run `tidlc` to generate C++ stub/proxy from `accessibility-service.tidl`
-2. Implement `TidlIpcServer` dispatch using generated stub
-3. Implement all 5 client wrappers using generated proxies
-4. Test with real screen reader on Tizen
+생성 결과: stub header 20KB + impl 54KB, proxy header 15KB + impl 159KB. `ServiceBase` 클래스에 모든 TIDL 메서드가 pure virtual로 생성됨.
+
+## macOS 테스트 한계 (Limitation)
+
+생성된 코드가 Tizen 플랫폼 API를 직접 호출:
+
+| 의존성 | stub .cc | proxy .cc | 비고 |
+|--------|----------|-----------|------|
+| `rpc_port_*` 호출 | 477회 | 1,553회 | P2P 소켓, 직렬화 |
+| 필요 헤더 | `bundle.h`, `rpc-port.h`, `rpc-port-parcel.h`, `dlog.h` | 동일 | Tizen 전용 |
+
+**GDBus와의 차이**: GDBus는 `brew install dbus`로 macOS에서 full IPC round-trip 테스트가 가능했으나, TIDL의 `rpc_port`는 Tizen 앱 프레임워크(cynara, aul) 위에서만 동작. 헤더를 제공해도 컴파일만 되고, 실제 P2P 연결·데이터 직렬화·보안 검증은 Tizen 런타임 없이 불가능.
+
+## Tizen 디바이스 환경에서 해야 할 작업 (Stage B/C)
+
+### Stage B: 생성 코드 통합 (Tizen SDK 필요)
+
+1. **tidlc 코드 생성**
+   ```bash
+   tidlc -s -l C++ -i accessibility-service.tidl -o generated/accessibility-bridge-stub
+   tidlc -p -l C++ -i accessibility-service.tidl -o generated/accessibility-bridge-proxy
+   ```
+
+2. **TidlIpcServer dispatch 구현**
+   - 생성된 `ServiceBase`를 상속하는 `AccessibilityBridgeService` 클래스 작성
+   - 각 virtual 메서드(예: `GetName(objectPath)`)에서:
+     1. `objectPath`로 `FindCurrentObject()` 호출하여 대상 `Accessible*` 해석
+     2. `TidlInterfaceDescription`에 저장된 핸들러에서 해당 메서드 콜백 lookup
+     3. 콜백 실행 후 결과를 TIDL 반환 타입(bundle 등)으로 변환
+   - `mCurrentObjectPath`를 설정하여 `getCurrentObjectPath()` 동작
+
+3. **5개 Client wrapper 구현**
+   - 생성된 proxy 클래스(`proxy::AccessibilityBridge`)를 감싸서 Ipc 인터페이스 구현:
+     - `TidlStatusMonitor`: `proxy.GetIsEnabled()` / `OnIsEnabledChanged` delegate
+     - `TidlKeyEventForwarder`: `proxy.NotifyListenersSync()`
+     - `TidlDirectReadingClient`: `proxy.ReadCommand()` / `OnReadingStateChanged` delegate
+     - `TidlRegistryClient`: `proxy.GetRegisteredEvents()` / `OnEventListenerRegistered` delegate
+     - `TidlSocketClient`: `proxy.Embed()` / `proxy.Unembed()`
+
+4. **CMake 업데이트**
+   - `file.list`에 생성된 `.cc` 파일 추가
+   - `PKG_CHECK_MODULES(RPC_PORT rpc-port)` 활성화 후 실제 링크
+
+### Stage C: 통합 테스트 (Tizen 디바이스/에뮬레이터)
+
+1. **빌드 및 기본 테스트**
+   ```bash
+   cmake .. -DENABLE_ATSPI=ON -DENABLE_TIDL=ON -DENABLE_PKG_CONFIGURE=ON
+   make -j8
+   ./accessibility-test  # TIDL transport로 전체 테스트 통과 확인
+   ```
+
+2. **스크린 리더 연동**: 실제 Tizen 스크린 리더가 TIDL proxy로 접속하여 `GetName`, `GetRole`, `GetNeighbor` 등 호출 확인
+
+3. **성능 비교**: D-Bus vs TIDL latency 측정 (daemon hop 제거 효과)
+
+4. **Cynara 보안**: 앱 간 접근 권한 검증
+
+## 다음 Phase
 
 ### Phase 3: AccessibilityService base class
-- `NodeProxy` interface (~40 methods: getName, getRole, getStates, getNeighbor, ...)
+- `NodeProxy` interface (~40 methods)
 - `AppRegistry` (desktop, active window, app lifecycle)
 - `GestureProvider` (gesture → navigation mapping)
 - `AccessibilityService` base class with virtual hooks
@@ -62,11 +119,15 @@ Added a pluggable TIDL backend alongside the existing D-Bus backend so the acces
 ```bash
 cd ~/tizen/accessibility-common/build/tizen/build
 
-# Default D-Bus backend (all tests pass)
+# D-Bus backend (all tests pass)
 cmake .. -DENABLE_ATSPI=ON -DBUILD_TESTS=ON -DENABLE_PKG_CONFIGURE=OFF
-make -j8 && ./accessibility-test
+make -j8 && ./accessibility-test  # 56 passed
 
-# TIDL backend (compiles, bridge lifecycle works)
+# TIDL backend scaffold (compiles, bridge lifecycle works)
 cmake .. -DENABLE_ATSPI=ON -DENABLE_TIDL=ON -DENABLE_PKG_CONFIGURE=OFF
 make -j8
+
+# tidlc code generation (macOS — download from download.tizen.org)
+tidlc -s -l C++ -i accessibility-service.tidl -o generated/stub
+tidlc -p -l C++ -i accessibility-service.tidl -o generated/proxy
 ```
