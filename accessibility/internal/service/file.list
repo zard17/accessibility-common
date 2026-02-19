@@ -1,0 +1,9 @@
+
+SET( accessibility_common_service_src_files
+  ${accessibility_common_internal_dir}/service/atspi-node-proxy.cpp
+  ${accessibility_common_internal_dir}/service/atspi-app-registry.cpp
+  ${accessibility_common_internal_dir}/service/atspi-event-router.cpp
+  ${accessibility_common_internal_dir}/service/composite-app-registry.cpp
+  ${accessibility_common_internal_dir}/service/window-tracker.cpp
+  ${accessibility_common_internal_dir}/service/accessibility-service-impl.cpp
+)

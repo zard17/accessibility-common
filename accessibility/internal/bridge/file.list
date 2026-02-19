@@ -38,3 +38,6 @@ SET( accessibility_common_tidl_src_files
 SET( accessibility_common_atspi_dummy_src_files
   ${accessibility_common_internal_dir}/bridge/dummy/dummy-atspi.cpp
 )
+
+# Service layer (AT side: AccessibilityService, NodeProxy implementations)
+INCLUDE( ${accessibility_common_internal_dir}/service/file.list )

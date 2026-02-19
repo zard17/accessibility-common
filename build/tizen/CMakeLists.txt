@@ -77,6 +77,7 @@ SET( SOURCES
 
 IF( ENABLE_ATSPI )
   SET( SOURCES ${SOURCES} ${accessibility_common_atspi_bridge_src_files} )
+  SET( SOURCES ${SOURCES} ${accessibility_common_service_src_files} )
   IF( ENABLE_TIDL )
     # TIDL backend: direct P2P via rpc_port (Tizen native)
     SET( SOURCES ${SOURCES} ${accessibility_common_tidl_src_files} )
@@ -221,6 +222,25 @@ IF( BUILD_TESTS )
   IF( ENABLE_TIDL )
     TARGET_COMPILE_DEFINITIONS( accessibility-test PRIVATE ENABLE_TIDL_BACKEND )
   ENDIF()
+ENDIF()
+
+# AccessibilityService unit tests (mock-based, no D-Bus dependency)
+OPTION( BUILD_SERVICE_TESTS "Build AccessibilityService unit tests" OFF )
+IF( BUILD_SERVICE_TESTS )
+  SET( SERVICE_TEST_BRIDGE_SOURCES
+    ${accessibility_common_atspi_bridge_src_files}
+    ${accessibility_common_dbus_stub_src_files}
+    ${accessibility_common_api_src_files}
+    ${accessibility_common_internal_dir}/bridge/bridge-platform.cpp
+    ${accessibility_common_service_src_files}
+  )
+  ADD_EXECUTABLE( accessibility-service-test
+    ${SERVICE_TEST_BRIDGE_SOURCES}
+    ${accessibility_common_root}/test/mock/mock-dbus-wrapper.cpp
+    ${accessibility_common_root}/test/test-accessible.cpp
+    ${accessibility_common_root}/test/test-service.cpp
+  )
+  TARGET_INCLUDE_DIRECTORIES( accessibility-service-test PRIVATE ${accessibility_common_root} )
 ENDIF()
 
 # Accessibility Inspector
@@ -413,4 +433,5 @@ MESSAGE( STATUS "  Build Inspector Lib:      ${BUILD_INSPECTOR_LIB}" )
 MESSAGE( STATUS "  Build Direct Inspector:   ${BUILD_WEB_INSPECTOR_DIRECT}" )
 MESSAGE( STATUS "  Build GDBus Tests:        ${BUILD_GDBUS_TESTS}" )
 MESSAGE( STATUS "  Build GDBus Web Inspector: ${BUILD_WEB_INSPECTOR_GDBUS}" )
+MESSAGE( STATUS "  Build Service Tests:      ${BUILD_SERVICE_TESTS}" )
 MESSAGE( STATUS "" )

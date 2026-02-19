@@ -6,12 +6,15 @@ Standalone, toolkit-agnostic accessibility library extracted from DALi. Provides
 
 ## Repository Structure
 
-- `accessibility/api/` - Public API: `Accessible`, `Component`, `Bridge` interfaces, enums, types
+- `accessibility/api/` - Public API: `Accessible`, `Component`, `Bridge` interfaces, enums, types, `NodeProxy`, `AppRegistry`, `GestureProvider`, `AccessibilityService`
 - `accessibility/public-api/` - Top-level convenience header
 - `accessibility/internal/bridge/` - AT-SPI bridge implementation (bridge-base, bridge-impl, bridge-accessible, etc.)
 - `accessibility/internal/bridge/ipc/` - IPC abstraction layer: `Ipc::Server`, `Ipc::Client`, `Ipc::InterfaceDescription`, `Ipc::ValueOrError`
 - `accessibility/internal/bridge/dbus/` - D-Bus backend: `dbus.h` (serialization templates), `dbus-ipc-server.h` / `dbus-ipc-client.h` (IPC backend wrappers), `dbus-tizen.cpp` (EFL backend), `dbus-stub.cpp` (stub backend)
-- `test/` - Mock D-Bus wrapper, TestAccessible, test application
+- `accessibility/internal/service/` - AT-side service layer: `AccessibilityService` base, `AtSpiNodeProxy`, `AtSpiAppRegistry`, `AtSpiEventRouter`, `WindowTracker`, `CompositeAppRegistry`
+- `accessibility/internal/service/tidl/` - TIDL scaffold implementations (to be completed on Tizen device)
+- `accessibility/internal/service/stub/` - Platform stubs for macOS (no-op gesture, stub registry)
+- `test/` - Mock D-Bus wrapper, TestAccessible, test application, service tests, mock NodeProxy/AppRegistry/GestureProvider
 - `tools/inspector/` - Interactive CLI accessibility inspector with TTS
 - `build/tizen/` - CMake build system
 
@@ -44,7 +47,19 @@ make -j$(nproc)
 
 ```bash
 ./accessibility-test
-# Expected: "=== Results: 31 passed, 0 failed ==="
+# Expected: "=== Results: 56 passed, 0 failed ==="
+```
+
+## Running AccessibilityService Tests
+
+```bash
+cd build/tizen && mkdir -p build && cd build
+
+cmake .. -DENABLE_ATSPI=ON -DBUILD_SERVICE_TESTS=ON -DENABLE_PKG_CONFIGURE=OFF
+make -j$(nproc)
+
+./accessibility-service-test
+# Expected: "=== Results: 55 passed, 0 failed ==="
 ```
 
 ## Running the Accessibility Inspector
@@ -198,6 +213,9 @@ server.Stop();
 - **Fallback interface registration**: Bridge modules register at path `"/"` with `fallback=true` via `mIpcServer->addInterface()`. `FindCurrentObject()` resolves the target from the request path.
 - **PlatformCallbacks**: Runtime callbacks decouple the bridge from any event loop or toolkit.
 - **Feature system**: `Accessible::AddFeature<T>()` / `GetFeature<T>()` for optional interfaces (Action, EditableText, Value, etc.).
+- **AccessibilityService pattern (Android-inspired)**: AT services extend `AccessibilityService` and implement virtual callbacks (`onAccessibilityEvent`, `onWindowChanged`, `onGesture`). The base class provides `navigateNext()`, `navigatePrev()`, `highlightNode()` using `NodeProxy` and `AppRegistry` abstract interfaces, making services transport-agnostic (D-Bus/TIDL).
+- **Proxy (not Cache) design**: `NodeProxy` methods are IPC calls (no local tree cache). `getReadingMaterial()` batch call fetches 24 fields in one round-trip. `AtSpiNodeProxy` uses `DBus::DBusClient` per call; `TidlNodeProxy` (scaffold) will use `rpc_port` proxy.
+- **CompositeAppRegistry**: Merges `AtSpiAppRegistry` (D-Bus apps) and `TidlAppRegistry` (TIDL apps) into a unified view. Both callback registrations fire for both registries.
 
 ## Important Files
 
@@ -219,6 +237,17 @@ server.Stop();
 - `tools/inspector/web-inspector-direct-main.cpp` - Standalone direct inspector binary (TestAccessible demo tree).
 - `tools/inspector/web-inspector-gdbus-main.cpp` - GDBus web inspector binary (real D-Bus IPC round-trip).
 - `third-party/cpp-httplib/httplib.h` - Vendored cpp-httplib v0.18.3 (MIT, single-header HTTP server).
+- `accessibility/api/node-proxy.h` - `NodeProxy` abstract interface (42 methods) + `ReadingMaterial`, `NodeInfo`, `RemoteRelation`, `DefaultLabelInfo` structs.
+- `accessibility/api/app-registry.h` - `AppRegistry` abstract interface for app discovery.
+- `accessibility/api/accessibility-service.h` - `AccessibilityService` base class (Android-inspired pattern).
+- `accessibility/api/accessibility-event.h` - `AccessibilityEvent` struct (10 event types).
+- `accessibility/api/gesture-provider.h` - `GestureProvider` abstract interface.
+- `accessibility/internal/service/atspi-node-proxy.h` - D-Bus `NodeProxy` implementation (42 methods via `DBus::DBusClient`).
+- `accessibility/internal/service/atspi-app-registry.h` - D-Bus `AppRegistry` implementation.
+- `accessibility/internal/service/composite-app-registry.h` - Merges D-Bus + TIDL registries.
+- `test/mock/mock-node-proxy.h` - Mock `NodeProxy` backed by `TestAccessible*` (no IPC, DFS neighbor navigation).
+- `test/mock/mock-app-registry.h` - Mock `AppRegistry` with demo tree and `MockNodeProxy` factory.
+- `test/test-service.cpp` - 55 unit tests for `AccessibilityService`, `NodeProxy`, navigation, events, gestures.
 
 ## Rules
 
