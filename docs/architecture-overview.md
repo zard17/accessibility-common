@@ -589,6 +589,8 @@ Tree embedding (WebView 등) 시나리오에서의 Proxy vs Cache 상세 비교 
 | New AT = one subclass | AT-SPI protocol compatibility must be exact |
 | Testable with mocks (MockNodeProxy, etc.) | Event loop integration varies by platform |
 
+AccessibilityService가 AT-SPI를 대체하는 상세 분석, ATK 앱 공존 방안, TV in-process vs IPC 비교는 [service-design-rationale.md](service-design-rationale.md) 참조.
+
 ---
 
 ## 9. Phase 4: Service Implementations (DONE)
@@ -911,3 +913,5 @@ Test coverage 상세 및 build 방법은 [mock-and-test.md](mock-and-test.md) �
 | Phase 2 IPC abstraction detailed design | [phase2-ipc-abstraction.md](phase2-ipc-abstraction.md) |
 | Tree embedding: Proxy vs Cache deep analysis | [tree-embedding-analysis.md](tree-embedding-analysis.md) |
 | Full stack data flow (sequence diagrams) | [data-flow.md](data-flow.md) |
+| AccessibilityService vs AT-SPI, ATK coexistence, TV in-process | [service-design-rationale.md](service-design-rationale.md) |
+| Important files reference | [important-files.md](important-files.md) |
