@@ -49,41 +49,49 @@ DALi App
 ### IPC pluggable
 
 기존: `libatspi` → D-Bus only. 변경 불가.
+
 현재: `NodeProxy` 구현만 교체하면 D-Bus, TIDL, In-Process 모두 동작. 서비스 코드 변경 없음.
 
 ### Daemon 의존성 제거 (In-Process 모드)
 
 기존: `at-spi2-registryd` 데몬이 반드시 실행 중이어야 함.
+
 현재: `DirectNodeProxy` + `DirectAppRegistry`로 데몬 없이 동작 가능.
 
 ### Type safety
 
 기존: `atspi_accessible_get_name()` → `char*` 반환, caller가 `g_free()`. 런타임까지 타입 오류 모름.
+
 현재: `NodeProxy::getName()` → `std::string`, `getRole()` → `Role` enum. 컴파일 타임 검증.
 
 ### Batch optimization
 
 기존: `atspi_accessible_get_name()`, `_get_role()`, `_get_states()` — 각각 별도 D-Bus round-trip.
+
 현재: `getReadingMaterial()` 한 번에 24개 필드 fetch.
 
 ### Unit testable
 
 기존: `libatspi` mock 불가. 테스트하려면 실제 D-Bus daemon + app 필요.
+
 현재: `MockNodeProxy`, `MockAppRegistry`로 120개 screen reader 테스트가 IPC 없이 실행.
 
 ### Profile 분리 (Mobile/TV)
 
 기존: 하나의 binary에서 조건문 분기.
+
 현재: `ScreenReaderService`(mobile) / `TvScreenReaderService`(TV)가 같은 base class를 상속, event handling만 다름.
 
 ### Cross-platform
 
 기존: Linux D-Bus 전용 (`eldbus` → EFL 의존).
+
 현재: macOS에서 demo 동작. CI에서 stub backend로 테스트 가능.
 
 ### at-spi2-core fork 유지 비용 제거
 
 기존: at-spi2-core를 fork하여 custom interface 추가. Upstream 변경 cherry-pick, 충돌 관리 부담.
+
 현재: 자체 소유 코드에 자유롭게 확장. Upstream 추적 불필요.
 
 ---
