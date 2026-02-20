@@ -117,3 +117,58 @@ Browser-based GUI served via embedded HTTP server (~230 lines). Uses cpp-httplib
 - TTS via Web Speech API (browser-side, no server dependency)
 
 A mutex protects the engine from concurrent HTTP request handlers. JSON is serialized manually (no external JSON library — only 3 endpoints).
+
+---
+
+## Direct Web Inspector (tools/inspector/web-inspector-direct-main.cpp)
+
+Uses `DirectQueryEngine` to query `Accessible*` objects directly via their C++ interface — no D-Bus, no MockDBusWrapper. Works on any platform.
+
+```bash
+cmake .. -DENABLE_ATSPI=ON -DBUILD_WEB_INSPECTOR_DIRECT=ON -DENABLE_PKG_CONFIGURE=OFF
+make -j$(nproc)
+./accessibility-web-inspector-direct
+```
+
+Same web UI at `http://localhost:8080`. Uses TestAccessible demo tree.
+
+---
+
+## GDBus Web Inspector (tools/inspector/web-inspector-gdbus-main.cpp)
+
+Queries the accessibility tree through **real D-Bus IPC** — a private `dbus-daemon`, `FakeAtspiBroker`, and the GDBus backend. Every tree query goes through full D-Bus serialization/deserialization, proving the end-to-end round-trip.
+
+```bash
+# Requires dbus-daemon + gio-2.0
+cmake .. -DENABLE_ATSPI=ON -DBUILD_WEB_INSPECTOR_GDBUS=ON -DENABLE_PKG_CONFIGURE=ON
+make -j$(nproc)
+./accessibility-web-inspector-gdbus [port]
+```
+
+Same web UI. The difference is under the hood: every API call traverses real D-Bus IPC through `dbus-daemon`.
+
+---
+
+## Embeddable Inspector Library
+
+A static library (`libaccessibility-inspector.a`) that can be linked into any DALi app to add a web inspector endpoint.
+
+```bash
+cmake .. -DENABLE_ATSPI=ON -DBUILD_INSPECTOR_LIB=ON -DENABLE_PKG_CONFIGURE=OFF \
+  -DCMAKE_INSTALL_PREFIX=$DESKTOP_PREFIX -DLIB_DIR=$DESKTOP_PREFIX/lib -DINCLUDE_DIR=$DESKTOP_PREFIX/include
+make -j$(nproc) && make install
+```
+
+Usage in app code:
+```cpp
+#include <tools/inspector/direct-query-engine.h>
+#include <tools/inspector/web-inspector-server.h>
+
+InspectorEngine::DirectQueryEngine engine;
+engine.BuildSnapshot(rootAccessible);  // main thread
+
+InspectorEngine::WebInspectorServer server;
+server.Start(engine, 8080);  // background thread
+// ...
+server.Stop();
+```

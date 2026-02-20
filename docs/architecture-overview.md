@@ -45,19 +45,20 @@ gantt
 
     section Phase 2
     IPC 추상화 (양방향)          :done, p2, 2026-01, 2026-02
-    eldbus→GDBus               :active, p25, 2026-02, 2026-04
-    Tree Embedding 테스트        :p27, 2026-03, 2026-04
-    TIDL Backend               :p26, 2026-04, 2026-06
+    eldbus→GDBus               :done, p25, 2026-02, 2026-02
+    Tree Embedding 테스트        :done, p27, 2026-02, 2026-02
+    TIDL Backend (Stage A)      :done, p26a, 2026-02, 2026-02
+    TIDL Backend (Stage B/C)    :p26bc, 2026-06, 2026-08
 
     section Phase 3
     AccessibilityService Base   :done, p3, 2026-02, 2026-02
 
     section Phase 4
-    Screen Reader (C++)         :p4a, 2026-07, 2026-10
-    Inspector Rewrite           :p4b, 2026-10, 2026-12
+    Screen Reader (C++)         :done, p4a, 2026-02, 2026-02
+    Screen Reader Demos         :done, p45, 2026-02, 2026-02
 
     section Phase 5
-    DALi Toolkit Integration    :p5, 2026-10, 2027-01
+    DALi Toolkit Integration    :p5, 2026-06, 2027-01
 ```
 
 | Phase | Goal | Status |
@@ -312,7 +313,7 @@ graph TB
 
 ---
 
-## 6. Phase 2.5: eldbus → GDBus (TODO)
+## 6. Phase 2.5: eldbus → GDBus (DONE)
 
 ### Problem
 
@@ -590,7 +591,7 @@ Tree embedding (WebView 등) 시나리오에서의 Proxy vs Cache 상세 비교 
 
 ---
 
-## 9. Phase 4: Service Implementations (TODO)
+## 9. Phase 4: Service Implementations (DONE)
 
 ### 4a: Screen Reader (REQUIRED)
 
@@ -668,7 +669,7 @@ D-Bus/AT-SPI가 아닌 macOS native accessibility protocol을 사용하므로, I
 
 ---
 
-## Phase 5: Toolkit Integration (Planned)
+## 10. Phase 5: Toolkit Integration (Planned)
 
 accessibility-common을 DALi의 dependency로 다시 통합. 현재 dali-adaptor 내의 accessibility 코드를 대체.
 
@@ -681,7 +682,7 @@ accessibility-common을 DALi의 dependency로 다시 통합. 현재 dali-adaptor
 
 ---
 
-## 10. Full Stack Data Flow
+## 11. Full Stack Data Flow
 
 App → Bridge → IPC → Screen Reader 간의 signal, method call, navigation sequence diagram은 [data-flow.md](data-flow.md) 참조.
 
@@ -692,7 +693,7 @@ App → Bridge → IPC → Screen Reader 간의 signal, method call, navigation 
 
 ---
 
-## 11. Repository Structure (Target)
+## 12. Repository Structure
 
 ```
 accessibility-common/
@@ -749,12 +750,14 @@ accessibility-common/
 │   │       │   ├── tidl-event-router.h
 │   │       │   └── tidl-node-proxy.h
 │   │       └── file.list
-│   │
-│   └── service/                      # ← Phase 4: service implementations
-│       └── screen-reader/
-│           ├── screen-reader-service.h/.cpp
-│           ├── reading-composer.h/.cpp
-│           └── smart-notification.h/.cpp
+│   │       ├── screen-reader/            # ← Phase 4: screen reader services
+│   │       │   ├── screen-reader-service.cpp
+│   │       │   ├── tv-screen-reader-service.cpp
+│   │       │   ├── reading-composer.cpp
+│   │       │   ├── tts-command-queue.h/.cpp
+│   │       │   ├── symbol-table.h/.cpp
+│   │       │   └── stub/               # Screen reader stubs (stub-settings-provider)
+│   │       └── file.list
 │
 ├── tools/
 │   ├── inspector/                    # CLI/Web inspector (exists)
@@ -765,7 +768,7 @@ accessibility-common/
 │       ├── screen-reader-demo.cpp   # Gesture-based demo (ScreenReaderService)
 │       └── screen-reader-tv-demo.cpp # TV focus-based demo (TvScreenReaderService)
 │
-├── test/                             # Tests (56 existing + 55 service)
+├── test/                             # Tests (56 bridge + 55 service + 47 inspector + 120 screen reader)
 │   ├── mock/
 │   │   ├── mock-node-proxy.h
 │   │   ├── mock-app-registry.h
@@ -786,7 +789,7 @@ accessibility-common/
 
 ---
 
-## 12. Key Abstractions Across Phases
+## 13. Key Abstractions Across Phases
 
 ```mermaid
 graph TB
@@ -848,7 +851,7 @@ graph TB
 
 ---
 
-## 13. Decision Log (Cross-Phase)
+## 14. Decision Log (Cross-Phase)
 
 | # | Phase | Decision | Chosen | Rationale |
 |---|-------|----------|--------|-----------|
@@ -869,7 +872,7 @@ graph TB
 
 ---
 
-## 14. Risk Matrix
+## 15. Risk Matrix
 
 | Risk | Phase | Impact | Likelihood | Mitigation |
 |------|-------|--------|------------|------------|
@@ -882,18 +885,18 @@ graph TB
 
 ---
 
-## 15. Verification Strategy
+## 16. Verification Strategy
 
 | Phase | Test Method | Expected |
 |-------|------------|----------|
-| 1 | `accessibility-test` | 31 passed |
-| 2 | `accessibility-test` (unchanged) | 31 passed |
-| 2.5 | + GDBus integration test on session bus | 31 + N passed |
-| 2.7 | + Tree embedding unit tests | 31 + 10 passed |
-| 3 | + AccessibilityService unit tests (mock providers) | 56 + 55 passed |
-| 4a | Screen reader binary vs AT-SPI apps | End-to-end TTS |
+| 1 | `accessibility-test` | 56 passed |
+| 2 | `accessibility-test` (unchanged) | 56 passed |
+| 2.5 | + GDBus integration tests (48 unit + 42 integration) | 56 passed (regression) |
+| 2.7 | + Tree embedding unit tests | 56 passed (regression) |
+| 3 | + `accessibility-service-test` | 55 passed |
+| 4 | + `accessibility-inspector-service-test` + `accessibility-screen-reader-test` | 47 + 120 passed |
+| 4.5/4.6 | Screen reader demos vs real DALi controls | End-to-end TTS on macOS |
 | 5 | Full stack rebuild + existing AT-SPI consumers | Zero behavior change |
-| Full stack | accessibility-common → dali-adaptor → dali-toolkit → dali-demo | GUI app with a11y |
 
 Test coverage 상세 및 build 방법은 [mock-and-test.md](mock-and-test.md) 참조.
 

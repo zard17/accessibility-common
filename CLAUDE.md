@@ -12,12 +12,15 @@ Standalone, toolkit-agnostic accessibility library extracted from DALi. Provides
 - `accessibility/internal/bridge/ipc/` - IPC abstraction layer: `Ipc::Server`, `Ipc::Client`, `Ipc::InterfaceDescription`, `Ipc::ValueOrError`
 - `accessibility/internal/bridge/dbus/` - D-Bus backend: `dbus.h` (serialization templates), `dbus-ipc-server.h` / `dbus-ipc-client.h` (IPC backend wrappers), `dbus-tizen.cpp` (EFL backend), `dbus-stub.cpp` (stub backend)
 - `accessibility/internal/service/` - AT-side service layer: `AccessibilityService` base, `AtSpiNodeProxy`, `AtSpiAppRegistry`, `AtSpiEventRouter`, `WindowTracker`, `CompositeAppRegistry`
+- `accessibility/internal/service/screen-reader/` - Screen reader services: `ScreenReaderService`, `TvScreenReaderService`, `ReadingComposer`, `TtsCommandQueue`, `SymbolTable`
 - `accessibility/internal/service/tidl/` - TIDL scaffold implementations (to be completed on Tizen device)
-- `accessibility/internal/service/stub/` - Platform stubs for macOS (no-op gesture, stub registry)
+- `accessibility/internal/service/stub/` - Platform stubs for macOS (no-op gesture, stub registry, stub settings)
 - `test/` - Mock D-Bus wrapper, TestAccessible, test application, service tests, mock NodeProxy/AppRegistry/GestureProvider
-- `tools/inspector/` - Interactive CLI accessibility inspector with TTS
+- `tools/inspector/` - Interactive CLI/Web accessibility inspector (multiple variants: D-Bus, Direct, GDBus)
 - `tools/screen-reader/` - Screen reader demos (gesture-based + TV focus-based) with DirectNodeProxy, DirectAppRegistry, MacTtsEngine
 - `build/tizen/` - CMake build system
+
+For detailed file descriptions, see [docs/important-files.md](docs/important-files.md).
 
 ## Code Style
 
@@ -38,312 +41,57 @@ cmake .. -DENABLE_ATSPI=ON
 # Stub build (macOS/CI without eldbus)
 cmake .. -DENABLE_ATSPI=ON -DENABLE_PKG_CONFIGURE=OFF
 
-# With tests
-cmake .. -DENABLE_ATSPI=ON -DBUILD_TESTS=ON -DENABLE_PKG_CONFIGURE=OFF
-
 make -j$(nproc)
 ```
 
-## Running Tests
+## Tests
+
+All tests build with `-DENABLE_PKG_CONFIGURE=OFF` on macOS:
+
+| Target | CMake Option | Binary | Expected |
+|--------|-------------|--------|----------|
+| Bridge / core | `-DBUILD_TESTS=ON` | `accessibility-test` | 56 passed |
+| AccessibilityService | `-DBUILD_SERVICE_TESTS=ON` | `accessibility-service-test` | 55 passed |
+| InspectorService | `-DBUILD_INSPECTOR_SERVICE_TESTS=ON` | `accessibility-inspector-service-test` | 47 passed |
+| ScreenReaderService | `-DBUILD_SCREEN_READER_TESTS=ON` | `accessibility-screen-reader-test` | 120 passed |
+
+## Screen Reader Demos (require DALi)
+
+Both demos require `dali2-core`, `dali2-adaptor`, `dali2-toolkit` in `$HOME/tizen/dali-env/lib`.
+
+**Gesture-based** (`-DBUILD_SCREEN_READER_DEMO=ON` → `accessibility-screen-reader-demo`):
+Keyboard keys simulate touch gestures. Right/Left = navigate, Enter = activate, Up/Down = adjust ProgressBar.
+
+**TV focus-based** (`-DBUILD_SCREEN_READER_TV_DEMO=ON` → `accessibility-screen-reader-tv-demo`):
+DALi `KeyboardFocusManager` handles arrow-key navigation. `FocusChangedSignal` dispatches `STATE_CHANGED(focused)` to `TvScreenReaderService` for TTS. No gesture simulation needed.
 
 ```bash
-./accessibility-test
-# Expected: "=== Results: 56 passed, 0 failed ==="
-```
-
-## Running AccessibilityService Tests
-
-```bash
-cd build/tizen && mkdir -p build && cd build
-
-cmake .. -DENABLE_ATSPI=ON -DBUILD_SERVICE_TESTS=ON -DENABLE_PKG_CONFIGURE=OFF
-make -j$(nproc)
-
-./accessibility-service-test
-# Expected: "=== Results: 55 passed, 0 failed ==="
-```
-
-## Running InspectorService Tests
-
-```bash
-cd build/tizen && mkdir -p build && cd build
-
-cmake .. -DENABLE_ATSPI=ON -DBUILD_INSPECTOR_SERVICE_TESTS=ON -DENABLE_PKG_CONFIGURE=OFF
-make -j$(nproc)
-
-./accessibility-inspector-service-test
-# Expected: "=== Results: 47 passed, 0 failed ==="
-```
-
-## Running ScreenReaderService Tests
-
-```bash
-cd build/tizen && mkdir -p build && cd build
-
-cmake .. -DENABLE_ATSPI=ON -DBUILD_SCREEN_READER_TESTS=ON -DENABLE_PKG_CONFIGURE=OFF
-make -j$(nproc)
-
-./accessibility-screen-reader-test
-# Expected: "=== Results: 120 passed, 0 failed ==="
-```
-
-## Running the Screen Reader Demo (Gesture-Based)
-
-A real DALi application with embedded `ScreenReaderService`. Keyboard keys simulate touch gestures (flick, double-tap) to drive screen reader navigation and TTS.
-
-```bash
-cd build/tizen && mkdir -p build && cd build
-
-cmake .. -DENABLE_ATSPI=ON -DBUILD_SCREEN_READER_DEMO=ON -DENABLE_PKG_CONFIGURE=OFF
-make -j$(nproc)
-
-export DYLD_LIBRARY_PATH=$HOME/tizen/dali-env/lib
-./accessibility-screen-reader-demo
-```
-
-| Key | Action |
-|-----|--------|
-| Right / n | Navigate next (FLICK_RIGHT) |
-| Left / b | Navigate prev (FLICK_LEFT) |
-| Enter / d | Activate (DOUBLE_TAP) |
-| Space / p | Pause/resume TTS |
-| r | Read from top |
-| Up / Down | Adjust ProgressBar value |
-| t | Print accessibility tree |
-| Esc / q | Quit |
-
-## Running the TV Screen Reader Demo (Focus-Based)
-
-TV-mode demo using DALi's `KeyboardFocusManager` + `TvScreenReaderService`. Arrow keys move focus directly (no gesture simulation), and `FocusChangedSignal` triggers TTS via the TV screen reader service.
-
-```bash
-cd build/tizen && mkdir -p build && cd build
-
 cmake .. -DENABLE_ATSPI=ON -DBUILD_SCREEN_READER_TV_DEMO=ON -DENABLE_PKG_CONFIGURE=OFF
 make -j$(nproc)
-
 export DYLD_LIBRARY_PATH=$HOME/tizen/dali-env/lib
 ./accessibility-screen-reader-tv-demo
 ```
 
-| Key | Action |
-|-----|--------|
-| Up / Down | Move focus (KeyboardFocusManager) |
-| Left / Right | Move focus (KeyboardFocusManager) |
-| Enter | Activate focused element |
-| t | Print accessibility tree |
-| Esc / q | Quit |
+## Accessibility Inspectors
 
-Key difference from the gesture-based demo: `KeyboardFocusManager` handles all navigation, `FocusChangedSignal` dispatches `STATE_CHANGED(focused)` events to `TvScreenReaderService`, which reads the focused node via TTS with TV profile (no touch hints).
+Multiple inspector variants share a common engine. Details in [docs/inspector-architecture.md](docs/inspector-architecture.md).
 
-## Running the Accessibility Inspector
-
-The inspector is an interactive CLI tool that demonstrates accessibility working end-to-end. It creates a demo Tizen-like accessible tree, initializes the bridge with MockDBusWrapper, and lets you browse the tree and hear TTS output.
-
-```bash
-cd build/tizen && mkdir -p build && cd build
-
-# Build with inspector
-cmake .. -DENABLE_ATSPI=ON -DBUILD_INSPECTOR=ON -DENABLE_PKG_CONFIGURE=OFF
-make -j$(nproc)
-
-# Run
-./accessibility-inspector
-```
-
-### Inspector Commands
-
-| Key | Action |
-|-----|--------|
-| `p` | Print the full accessibility tree (focused element marked with `>>`) |
-| `n` | Navigate to **next** focusable element (forward) |
-| `b` | Navigate to **previous** focusable element (backward) |
-| `c` | Navigate to **first child** of current element |
-| `u` | Navigate to **parent** of current element |
-| `r` | **Read** current element details (name, role, states, bounds) |
-| `s` | **Speak** current element via system TTS |
-| `h` | Show help |
-| `q` | Quit |
-
-### Demo Tree
-
-```
-[WINDOW] "Main Window"
-  [PANEL] "Header"
-    [PUSH_BUTTON] "Menu"        <- focusable + highlightable
-    [LABEL] "My Tizen App"      <- highlightable
-  [PANEL] "Content"
-    [PUSH_BUTTON] "Play"        <- focusable + highlightable
-    [SLIDER] "Volume"           <- focusable + highlightable
-    [LABEL] "Now Playing: Bohemian Rhapsody"  <- highlightable
-  [PANEL] "Footer"
-    [PUSH_BUTTON] "Previous"    <- focusable + highlightable
-    [PUSH_BUTTON] "Next"        <- focusable + highlightable
-```
-
-Forward navigation (`n`) walks: Menu -> My Tizen App -> Play -> Volume -> Now Playing -> Previous -> Next.
-
-### TTS
-
-- **macOS**: Uses `AVSpeechSynthesizer` — speaks element role and name aloud
-- **Other platforms**: Prints `[TTS] ROLE. Name` to console
-
-## Running the Web-Based Accessibility Inspector
-
-The web inspector provides a browser-based GUI for exploring the accessibility tree. It uses the same demo tree and bridge infrastructure as the CLI inspector, served via an embedded HTTP server (cpp-httplib).
-
-```bash
-cd build/tizen && mkdir -p build && cd build
-
-# Build with web inspector
-cmake .. -DENABLE_ATSPI=ON -DBUILD_WEB_INSPECTOR=ON -DENABLE_PKG_CONFIGURE=OFF
-make -j$(nproc)
-
-# Run (default port 8080, or specify custom port)
-./accessibility-web-inspector
-./accessibility-web-inspector 9000
-```
-
-Open `http://localhost:8080` in a browser. The interface provides:
-- **Tree panel** (left): visual tree with click-to-select and collapsible nodes
-- **Detail panel** (right): element info (name, role, states, bounds, tree position)
-- **Navigation buttons**: Prev, Next, Child, Parent, Refresh
-- **Keyboard shortcuts**: Tab/Shift+Tab (next/prev), Enter (child), Backspace (parent), S (speak), R (refresh)
-- **TTS**: Uses browser's Web Speech API (no server dependency)
-
-### REST API
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/` | GET | HTML/CSS/JS frontend |
-| `/api/tree` | GET | Full tree JSON + current focusedId |
-| `/api/element/:id` | GET | Element details |
-| `/api/navigate` | POST | Navigate: `{"direction": "next\|prev\|child\|parent"}` |
-
-## Running the Direct Web Inspector (No D-Bus)
-
-The direct web inspector uses `DirectQueryEngine` to query `Accessible*` objects directly via their C++ interface — no D-Bus, no MockDBusWrapper. Works on any platform.
-
-```bash
-cd build/tizen && mkdir -p build && cd build
-
-# Build with direct web inspector
-cmake .. -DENABLE_ATSPI=ON -DBUILD_WEB_INSPECTOR_DIRECT=ON -DENABLE_PKG_CONFIGURE=OFF
-make -j$(nproc)
-
-# Run
-./accessibility-web-inspector-direct
-```
-
-Same web UI as the original web inspector at `http://localhost:8080`.
-
-## Running the GDBus Web Inspector (Real D-Bus IPC)
-
-The GDBus web inspector queries the accessibility tree through **real D-Bus IPC** — a private `dbus-daemon`, `FakeAtspiBroker`, and the GDBus backend. Every tree query goes through full D-Bus serialization/deserialization, proving the end-to-end round-trip.
-
-```bash
-cd build/tizen && mkdir -p build && cd build
-
-# Build with GDBus web inspector (requires dbus-daemon + gio-2.0)
-cmake .. -DENABLE_ATSPI=ON -DBUILD_WEB_INSPECTOR_GDBUS=ON -DENABLE_PKG_CONFIGURE=ON
-make -j$(nproc)
-
-# Run (default port 8080, or specify custom port)
-./accessibility-web-inspector-gdbus
-./accessibility-web-inspector-gdbus 9000
-```
-
-Same web UI as other inspectors at `http://localhost:8080`. The difference is under the hood: every API call traverses real D-Bus IPC through `dbus-daemon`.
-
-## Embeddable Inspector Library
-
-A static library (`libaccessibility-inspector.a`) that can be linked into any DALi app to add a web inspector endpoint.
-
-```bash
-# Build and install the library
-cmake .. -DENABLE_ATSPI=ON -DBUILD_INSPECTOR_LIB=ON -DENABLE_PKG_CONFIGURE=OFF \
-  -DCMAKE_INSTALL_PREFIX=$DESKTOP_PREFIX -DLIB_DIR=$DESKTOP_PREFIX/lib -DINCLUDE_DIR=$DESKTOP_PREFIX/include
-make -j$(nproc) && make install
-```
-
-Usage in app code:
-```cpp
-#include <tools/inspector/direct-query-engine.h>
-#include <tools/inspector/web-inspector-server.h>
-
-InspectorEngine::DirectQueryEngine engine;
-engine.BuildSnapshot(rootAccessible);  // main thread
-
-InspectorEngine::WebInspectorServer server;
-server.Start(engine, 8080);  // background thread
-// ...
-server.Stop();
-```
+| Variant | CMake Option | Binary | Description |
+|---------|-------------|--------|-------------|
+| CLI | `-DBUILD_INSPECTOR=ON` | `accessibility-inspector` | Terminal-based, `p`/`n`/`b`/`s` keys |
+| Web | `-DBUILD_WEB_INSPECTOR=ON` | `accessibility-web-inspector` | Browser UI at `:8080` |
+| Direct (no D-Bus) | `-DBUILD_WEB_INSPECTOR_DIRECT=ON` | `accessibility-web-inspector-direct` | Direct `Accessible*` queries |
+| GDBus (real IPC) | `-DBUILD_WEB_INSPECTOR_GDBUS=ON` | `accessibility-web-inspector-gdbus` | Full D-Bus round-trip |
+| Embeddable lib | `-DBUILD_INSPECTOR_LIB=ON` | `libaccessibility-inspector.a` | Link into any DALi app |
 
 ## Key Design Patterns
 
-- **IPC abstraction layer**: Bridge modules use `Ipc::Server` / `Ipc::Client` / `Ipc::InterfaceDescription` interfaces. D-Bus is the first backend (`Ipc::DbusIpcServer`, `Ipc::DbusIpcClient`). `Ipc::ValueOrError<T>` is protocol-neutral; `DBus::ValueOrError<T>` is a backward-compat alias. Signal emission uses `mIpcServer->emitSignal()` with `Ipc::SignalVariant` payloads.
+- **IPC abstraction layer**: Bridge modules use `Ipc::Server` / `Ipc::Client` / `Ipc::InterfaceDescription` interfaces. D-Bus is the first backend (`Ipc::DbusIpcServer`, `Ipc::DbusIpcClient`).
 - **DBusWrapper virtual interface**: All D-Bus operations go through `DBusWrapper::Installed()`. Swap backends via `DBusWrapper::Install(unique_ptr)`.
-- **Fallback interface registration**: Bridge modules register at path `"/"` with `fallback=true` via `mIpcServer->addInterface()`. `FindCurrentObject()` resolves the target from the request path.
 - **PlatformCallbacks**: Runtime callbacks decouple the bridge from any event loop or toolkit.
 - **Feature system**: `Accessible::AddFeature<T>()` / `GetFeature<T>()` for optional interfaces (Action, EditableText, Value, etc.).
-- **AccessibilityService pattern (Android-inspired)**: AT services extend `AccessibilityService` and implement virtual callbacks (`onAccessibilityEvent`, `onWindowChanged`, `onGesture`). The base class provides `navigateNext()`, `navigatePrev()`, `highlightNode()` using `NodeProxy` and `AppRegistry` abstract interfaces, making services transport-agnostic (D-Bus/TIDL).
-- **Proxy (not Cache) design**: `NodeProxy` methods are IPC calls (no local tree cache). `getReadingMaterial()` batch call fetches 24 fields in one round-trip. `AtSpiNodeProxy` uses `DBus::DBusClient` per call; `TidlNodeProxy` (scaffold) will use `rpc_port` proxy.
-- **CompositeAppRegistry**: Merges `AtSpiAppRegistry` (D-Bus apps) and `TidlAppRegistry` (TIDL apps) into a unified view. Both callback registrations fire for both registries.
-
-## Important Files
-
-- `ipc/ipc-result.h` - Protocol-neutral `Ipc::ValueOrError<T>`, `Ipc::Error`, `Ipc::ErrorType`.
-- `ipc/ipc-server.h` - Abstract `Ipc::Server` interface for server-side IPC.
-- `ipc/ipc-client.h` - Abstract `Ipc::Client` interface for client-side IPC.
-- `ipc/ipc-interface-description.h` - Base class for method/property/signal registration.
-- `dbus/dbus-ipc-server.h` - `Ipc::DbusIpcServer` wrapping `DBus::DBusServer`.
-- `dbus/dbus-ipc-client.h` - `Ipc::DbusIpcClient` wrapping `DBus::DBusClient`.
-- `dbus/dbus.h` - Core D-Bus abstraction (~2700 lines). Contains `DBusWrapper`, `DBusClient`, `DBusServer`, all serialization templates.
-- `bridge-impl.cpp` - Bridge lifecycle: `Initialize()`, `ForceUp()`, `ForceDown()`, `SwitchBridge()`.
-- `bridge-base.cpp` - `FindCurrentObject()`, `ApplicationAccessible`, interface registration helpers.
-- `accessibility-common.h` - D-Bus signature specializations for `Address`, `Accessible*`, `States`.
-- `tools/inspector/inspector-types.h` - Shared `ElementInfo` and `TreeNode` structs used by all inspector engines.
-- `tools/inspector/query-engine.h` - `InspectorEngine::AccessibilityQueryEngine` class (D-Bus-based tree queries).
-- `tools/inspector/direct-query-engine.h` - `InspectorEngine::DirectQueryEngine` class (direct C++ Accessible* queries, no D-Bus).
-- `tools/inspector/web-inspector-server.h` - `InspectorEngine::WebInspectorServer` embeddable HTTP server (PIMPL, background thread).
-- `tools/inspector/web-inspector.cpp` - Original web-based inspector HTTP server with REST API.
-- `tools/inspector/web-inspector-direct-main.cpp` - Standalone direct inspector binary (TestAccessible demo tree).
-- `tools/inspector/web-inspector-gdbus-main.cpp` - GDBus web inspector binary (real D-Bus IPC round-trip).
-- `third-party/cpp-httplib/httplib.h` - Vendored cpp-httplib v0.18.3 (MIT, single-header HTTP server).
-- `accessibility/api/node-proxy.h` - `NodeProxy` abstract interface (42 methods) + `ReadingMaterial`, `NodeInfo`, `RemoteRelation`, `DefaultLabelInfo` structs.
-- `accessibility/api/app-registry.h` - `AppRegistry` abstract interface for app discovery.
-- `accessibility/api/accessibility-service.h` - `AccessibilityService` base class (Android-inspired pattern).
-- `accessibility/api/accessibility-event.h` - `AccessibilityEvent` struct (10 event types).
-- `accessibility/api/gesture-provider.h` - `GestureProvider` abstract interface.
-- `accessibility/internal/service/atspi-node-proxy.h` - D-Bus `NodeProxy` implementation (42 methods via `DBus::DBusClient`).
-- `accessibility/internal/service/atspi-app-registry.h` - D-Bus `AppRegistry` implementation.
-- `accessibility/internal/service/composite-app-registry.h` - Merges D-Bus + TIDL registries.
-- `test/mock/mock-node-proxy.h` - Mock `NodeProxy` backed by `TestAccessible*` (no IPC, DFS neighbor navigation).
-- `test/mock/mock-app-registry.h` - Mock `AppRegistry` with demo tree and `MockNodeProxy` factory.
-- `test/test-service.cpp` - 55 unit tests for `AccessibilityService`, `NodeProxy`, navigation, events, gestures.
-- `tools/inspector/inspector-query-interface.h` - Abstract `InspectorQueryInterface` for NodeProxy-based and Accessible*-based query engines.
-- `tools/inspector/node-proxy-query-engine.h` - NodeProxy-based tree snapshot engine (thread-safe).
-- `accessibility/internal/service/inspector-service.h` - `InspectorService` extends `AccessibilityService` with web inspector.
-- `test/test-inspector-service.cpp` - 47 unit tests for InspectorService + NodeProxyQueryEngine.
-- `accessibility/api/tts-engine.h` - `TtsEngine` interface (speak, stop, pause, resume, purge, utterance callbacks) + `SpeakOptions`, `CommandId`.
-- `accessibility/api/feedback-provider.h` - `FeedbackProvider` interface (playSound, vibrate) + `SoundType` enum (7 types).
-- `accessibility/api/reading-composer.h` - `ReadingComposer` class + `ReadingComposerConfig` for TV/mobile.
-- `accessibility/api/settings-provider.h` - `SettingsProvider` interface + `ScreenReaderSettings` struct (7 fields).
-- `accessibility/api/screen-reader-switch.h` - `ScreenReaderSwitch` interface (org.a11y.Status + WM control).
-- `accessibility/api/direct-reading-service.h` - `DirectReadingService` interface (org.tizen.DirectReading).
-- `accessibility/api/screen-reader-service.h` - `ScreenReaderService` (full mode) + `TvScreenReaderService` (TV mode) headers.
-- `accessibility/internal/service/screen-reader/reading-composer.cpp` - Role/state/description trait composition (~30 roles).
-- `accessibility/internal/service/screen-reader/tts-command-queue.h/.cpp` - Pure C++ TTS queue with 300-char chunking, discard policy, pause/resume.
-- `accessibility/internal/service/screen-reader/symbol-table.h/.cpp` - 53 symbol→spoken text mappings.
-- `accessibility/internal/service/screen-reader/screen-reader-service.cpp` - Full mode: gesture dispatch, event handling, TTS, feedback.
-- `accessibility/internal/service/screen-reader/tv-screen-reader-service.cpp` - TV mode: focus-only events, no gestures.
-- `test/test-screen-reader-service.cpp` - 120 unit tests for ScreenReaderService, TvScreenReaderService, ReadingComposer, TtsCommandQueue, SymbolTable.
-- `tools/screen-reader/direct-node-proxy.h` - `NodeProxy` backed by `Accessible*` (in-process, no IPC). 42 methods + CHECKABLE state inference.
-- `tools/screen-reader/direct-app-registry.h` - `AppRegistry` wrapping DALi root accessible with `weak_ptr` proxy cache.
-- `tools/screen-reader/mac-tts-engine.h/.mm` - macOS `TtsEngine` using `AVSpeechSynthesizer` (PIMPL + ObjC delegate).
-- `tools/screen-reader/screen-reader-demo.cpp` - Gesture-based demo: DALi app + `ScreenReaderService` + keyboard→gesture mapping.
-- `tools/screen-reader/screen-reader-tv-demo.cpp` - TV focus-based demo: DALi `KeyboardFocusManager` + `TvScreenReaderService` + `FocusChangedSignal`→TTS.
+- **AccessibilityService pattern (Android-inspired)**: AT services extend `AccessibilityService` and implement virtual callbacks (`onAccessibilityEvent`, `onWindowChanged`, `onGesture`). The base class provides `navigateNext()`, `navigatePrev()`, `highlightNode()` using `NodeProxy` and `AppRegistry` abstract interfaces.
+- **Proxy (not Cache) design**: `NodeProxy` methods are IPC calls (no local tree cache). `getReadingMaterial()` batch call fetches 24 fields in one round-trip.
 
 ## Rules
 
