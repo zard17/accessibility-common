@@ -69,6 +69,8 @@ gantt
 | **2.7** | Tree embedding 테스트 | **DONE** |
 | **3** | AccessibilityService base class | **DONE** (55 service tests + 56 existing) |
 | **4** | Concrete services (Inspector + ScreenReader) | **DONE** (47 inspector + 120 screen reader tests) |
+| **4.5** | Screen Reader Demo (gesture-based, real DALi app) | **DONE** |
+| **4.6** | TV Screen Reader Demo (focus-based, KeyboardFocusManager) | **DONE** |
 | **5** | DALi toolkit integration | TODO |
 
 ---
@@ -633,6 +635,16 @@ graph TB
 
 구현 순서: ReadingComposer → SmartNotification → TtsEngine → GestureProvider → ScreenReaderService → main
 
+### 4.5: Screen Reader Demo (DONE)
+
+실제 DALi 앱 + 임베디드 `ScreenReaderService`. 키보드→gesture 매핑으로 navigation, TTS 발화, highlight 동작.
+`DirectNodeProxy`/`DirectAppRegistry`/`MacTtsEngine`을 사용하여 D-Bus 없이 in-process로 동작.
+
+### 4.6: TV Screen Reader Demo (DONE)
+
+DALi `KeyboardFocusManager` + `TvScreenReaderService`. 방향키가 직접 focus를 이동하고,
+`FocusChangedSignal` → `STATE_CHANGED(focused)` 이벤트로 TTS 발화. Gesture 불필요 (StubGestureProvider).
+
 ### 4b: Inspector (OPTIONAL)
 
 기존 `DirectQueryEngine` + `WebInspectorServer` 위에 재구축. 현재 동작하므로 우선순위 낮음.
@@ -746,8 +758,12 @@ accessibility-common/
 │
 ├── tools/
 │   ├── inspector/                    # CLI/Web inspector (exists)
-│   └── screen-reader/               # ← Phase 4: screen reader binary
-│       └── main.cpp
+│   └── screen-reader/               # ← Phase 4.5/4.6: screen reader demos
+│       ├── direct-node-proxy.h      # NodeProxy backed by Accessible* (in-process)
+│       ├── direct-app-registry.h    # AppRegistry wrapping DALi root accessible
+│       ├── mac-tts-engine.h/.mm     # macOS AVSpeechSynthesizer TtsEngine
+│       ├── screen-reader-demo.cpp   # Gesture-based demo (ScreenReaderService)
+│       └── screen-reader-tv-demo.cpp # TV focus-based demo (TvScreenReaderService)
 │
 ├── test/                             # Tests (56 existing + 55 service)
 │   ├── mock/

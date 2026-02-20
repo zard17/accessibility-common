@@ -16,6 +16,7 @@ Standalone, toolkit-agnostic accessibility library extracted from DALi. Provides
 - `accessibility/internal/service/stub/` - Platform stubs for macOS (no-op gesture, stub registry)
 - `test/` - Mock D-Bus wrapper, TestAccessible, test application, service tests, mock NodeProxy/AppRegistry/GestureProvider
 - `tools/inspector/` - Interactive CLI accessibility inspector with TTS
+- `tools/screen-reader/` - Screen reader demos (gesture-based + TV focus-based) with DirectNodeProxy, DirectAppRegistry, MacTtsEngine
 - `build/tizen/` - CMake build system
 
 ## Code Style
@@ -85,6 +86,55 @@ make -j$(nproc)
 ./accessibility-screen-reader-test
 # Expected: "=== Results: 120 passed, 0 failed ==="
 ```
+
+## Running the Screen Reader Demo (Gesture-Based)
+
+A real DALi application with embedded `ScreenReaderService`. Keyboard keys simulate touch gestures (flick, double-tap) to drive screen reader navigation and TTS.
+
+```bash
+cd build/tizen && mkdir -p build && cd build
+
+cmake .. -DENABLE_ATSPI=ON -DBUILD_SCREEN_READER_DEMO=ON -DENABLE_PKG_CONFIGURE=OFF
+make -j$(nproc)
+
+export DYLD_LIBRARY_PATH=$HOME/tizen/dali-env/lib
+./accessibility-screen-reader-demo
+```
+
+| Key | Action |
+|-----|--------|
+| Right / n | Navigate next (FLICK_RIGHT) |
+| Left / b | Navigate prev (FLICK_LEFT) |
+| Enter / d | Activate (DOUBLE_TAP) |
+| Space / p | Pause/resume TTS |
+| r | Read from top |
+| Up / Down | Adjust ProgressBar value |
+| t | Print accessibility tree |
+| Esc / q | Quit |
+
+## Running the TV Screen Reader Demo (Focus-Based)
+
+TV-mode demo using DALi's `KeyboardFocusManager` + `TvScreenReaderService`. Arrow keys move focus directly (no gesture simulation), and `FocusChangedSignal` triggers TTS via the TV screen reader service.
+
+```bash
+cd build/tizen && mkdir -p build && cd build
+
+cmake .. -DENABLE_ATSPI=ON -DBUILD_SCREEN_READER_TV_DEMO=ON -DENABLE_PKG_CONFIGURE=OFF
+make -j$(nproc)
+
+export DYLD_LIBRARY_PATH=$HOME/tizen/dali-env/lib
+./accessibility-screen-reader-tv-demo
+```
+
+| Key | Action |
+|-----|--------|
+| Up / Down | Move focus (KeyboardFocusManager) |
+| Left / Right | Move focus (KeyboardFocusManager) |
+| Enter | Activate focused element |
+| t | Print accessibility tree |
+| Esc / q | Quit |
+
+Key difference from the gesture-based demo: `KeyboardFocusManager` handles all navigation, `FocusChangedSignal` dispatches `STATE_CHANGED(focused)` events to `TvScreenReaderService`, which reads the focused node via TTS with TV profile (no touch hints).
 
 ## Running the Accessibility Inspector
 
@@ -289,6 +339,11 @@ server.Stop();
 - `accessibility/internal/service/screen-reader/screen-reader-service.cpp` - Full mode: gesture dispatch, event handling, TTS, feedback.
 - `accessibility/internal/service/screen-reader/tv-screen-reader-service.cpp` - TV mode: focus-only events, no gestures.
 - `test/test-screen-reader-service.cpp` - 120 unit tests for ScreenReaderService, TvScreenReaderService, ReadingComposer, TtsCommandQueue, SymbolTable.
+- `tools/screen-reader/direct-node-proxy.h` - `NodeProxy` backed by `Accessible*` (in-process, no IPC). 42 methods + CHECKABLE state inference.
+- `tools/screen-reader/direct-app-registry.h` - `AppRegistry` wrapping DALi root accessible with `weak_ptr` proxy cache.
+- `tools/screen-reader/mac-tts-engine.h/.mm` - macOS `TtsEngine` using `AVSpeechSynthesizer` (PIMPL + ObjC delegate).
+- `tools/screen-reader/screen-reader-demo.cpp` - Gesture-based demo: DALi app + `ScreenReaderService` + keyboard→gesture mapping.
+- `tools/screen-reader/screen-reader-tv-demo.cpp` - TV focus-based demo: DALi `KeyboardFocusManager` + `TvScreenReaderService` + `FocusChangedSignal`→TTS.
 
 ## Rules
 
