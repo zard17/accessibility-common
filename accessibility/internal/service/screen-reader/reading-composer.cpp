@@ -190,7 +190,14 @@ std::string ReadingComposer::compose(const ReadingMaterial& rm) const
 {
   std::string result;
 
-  // 1. Name (priority: labeledByName > name > textIfceName)
+  // 1. State trait (matches Tizen screen reader order: state → name → role → description)
+  auto stateTrait = composeStateTrait(rm);
+  if(!stateTrait.empty())
+  {
+    result = stateTrait;
+  }
+
+  // 2. Name (priority: labeledByName > name > textIfceName)
   std::string name;
   if(!rm.labeledByName.empty())
   {
@@ -207,23 +214,16 @@ std::string ReadingComposer::compose(const ReadingMaterial& rm) const
 
   if(!name.empty())
   {
-    result = name;
+    if(!result.empty()) result += ", ";
+    result += name;
   }
 
-  // 2. Role trait
+  // 3. Role trait
   auto roleTrait = composeRoleTrait(rm);
   if(!roleTrait.empty())
   {
     if(!result.empty()) result += ", ";
     result += roleTrait;
-  }
-
-  // 3. State trait
-  auto stateTrait = composeStateTrait(rm);
-  if(!stateTrait.empty())
-  {
-    if(!result.empty()) result += ", ";
-    result += stateTrait;
   }
 
   // 4. Description trait

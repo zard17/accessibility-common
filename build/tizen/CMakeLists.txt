@@ -492,6 +492,54 @@ IF( BUILD_SCREEN_READER_TESTS )
   TARGET_INCLUDE_DIRECTORIES( accessibility-screen-reader-test PRIVATE ${accessibility_common_root} )
 ENDIF()
 
+# Screen Reader Demo (requires DALi — real app with embedded ScreenReaderService)
+SET( DESKTOP_PREFIX "$ENV{HOME}/tizen/dali-env" )
+OPTION( BUILD_SCREEN_READER_DEMO "Build screen reader demo (requires DALi)" OFF )
+IF( BUILD_SCREEN_READER_DEMO )
+  FIND_LIBRARY( DALI_CORE_LIB dali2-core PATHS ${DESKTOP_PREFIX}/lib )
+  FIND_LIBRARY( DALI_ADAPTOR_LIB dali2-adaptor PATHS ${DESKTOP_PREFIX}/lib )
+  FIND_LIBRARY( DALI_TOOLKIT_LIB dali2-toolkit PATHS ${DESKTOP_PREFIX}/lib )
+
+  IF( NOT DALI_CORE_LIB OR NOT DALI_ADAPTOR_LIB OR NOT DALI_TOOLKIT_LIB )
+    MESSAGE( FATAL_ERROR "BUILD_SCREEN_READER_DEMO requires DALi (dali2-core, dali2-adaptor, dali2-toolkit) in ${DESKTOP_PREFIX}/lib" )
+  ENDIF()
+
+  SET( SCREEN_READER_DEMO_SOURCES
+    ${accessibility_common_root}/tools/screen-reader/screen-reader-demo.cpp
+    ${accessibility_common_atspi_bridge_src_files}
+    ${accessibility_common_dbus_stub_src_files}
+    ${accessibility_common_api_src_files}
+    ${accessibility_common_internal_dir}/bridge/bridge-platform.cpp
+    ${accessibility_common_service_src_files}
+    ${accessibility_common_screen_reader_src_files}
+  )
+
+  ADD_EXECUTABLE( accessibility-screen-reader-demo ${SCREEN_READER_DEMO_SOURCES} )
+  TARGET_INCLUDE_DIRECTORIES( accessibility-screen-reader-demo PRIVATE
+    ${accessibility_common_root}
+    ${DESKTOP_PREFIX}/include
+    ${DESKTOP_PREFIX}/include/dali
+  )
+  TARGET_LINK_LIBRARIES( accessibility-screen-reader-demo
+    ${DALI_CORE_LIB}
+    ${DALI_ADAPTOR_LIB}
+    ${DALI_TOOLKIT_LIB}
+  )
+
+  IF( APPLE )
+    TARGET_SOURCES( accessibility-screen-reader-demo PRIVATE
+      ${accessibility_common_root}/tools/screen-reader/mac-tts-engine.mm
+    )
+    TARGET_LINK_LIBRARIES( accessibility-screen-reader-demo
+      "-framework AVFoundation" "-framework Foundation" objc
+    )
+  ENDIF()
+
+  MESSAGE( STATUS "Screen Reader Demo: DALi core=${DALI_CORE_LIB}" )
+  MESSAGE( STATUS "                    DALi adaptor=${DALI_ADAPTOR_LIB}" )
+  MESSAGE( STATUS "                    DALi toolkit=${DALI_TOOLKIT_LIB}" )
+ENDIF()
+
 MESSAGE( STATUS "" )
 MESSAGE( STATUS "Configuration:" )
 MESSAGE( STATUS "  Prefix:                   ${PREFIX}" )
@@ -511,4 +559,5 @@ MESSAGE( STATUS "  Build Service Tests:      ${BUILD_SERVICE_TESTS}" )
 MESSAGE( STATUS "  Build Inspector Service Tests: ${BUILD_INSPECTOR_SERVICE_TESTS}" )
 MESSAGE( STATUS "  Build Inspector Service:  ${BUILD_INSPECTOR_SERVICE}" )
 MESSAGE( STATUS "  Build Screen Reader Tests: ${BUILD_SCREEN_READER_TESTS}" )
+MESSAGE( STATUS "  Build Screen Reader Demo: ${BUILD_SCREEN_READER_DEMO}" )
 MESSAGE( STATUS "" )
