@@ -7,3 +7,11 @@ SET( accessibility_common_service_src_files
   ${accessibility_common_internal_dir}/service/window-tracker.cpp
   ${accessibility_common_internal_dir}/service/accessibility-service-impl.cpp
 )
+
+SET( accessibility_common_screen_reader_src_files
+  ${accessibility_common_internal_dir}/service/screen-reader/reading-composer.cpp
+  ${accessibility_common_internal_dir}/service/screen-reader/tts-command-queue.cpp
+  ${accessibility_common_internal_dir}/service/screen-reader/symbol-table.cpp
+  ${accessibility_common_internal_dir}/service/screen-reader/screen-reader-service.cpp
+  ${accessibility_common_internal_dir}/service/screen-reader/tv-screen-reader-service.cpp
+)

@@ -16,22 +16,21 @@
  */
 
 // INTERNAL INCLUDES
-#include <tools/inspector/direct-query-engine.h>
+#include <tools/inspector/node-proxy-query-engine.h>
 
 // EXTERNAL INCLUDES
 #include <algorithm>
-#include <cstdio>
 
 // INTERNAL INCLUDES
-#include <accessibility/api/accessible.h>
 #include <accessibility/api/accessibility.h>
+#include <accessibility/api/node-proxy.h>
 
 namespace InspectorEngine
 {
-DirectQueryEngine::DirectQueryEngine() = default;
-DirectQueryEngine::~DirectQueryEngine() = default;
+NodeProxyQueryEngine::NodeProxyQueryEngine() = default;
+NodeProxyQueryEngine::~NodeProxyQueryEngine() = default;
 
-std::string DirectQueryEngine::RoleToString(Accessibility::Role role)
+std::string NodeProxyQueryEngine::RoleToString(Accessibility::Role role)
 {
   static const char* names[] = {
     "INVALID", "ACCELERATOR_LABEL", "ALERT", "ANIMATION", "ARROW", "CALENDAR",
@@ -64,10 +63,8 @@ std::string DirectQueryEngine::RoleToString(Accessibility::Role role)
   return "ROLE_" + std::to_string(idx);
 }
 
-std::string DirectQueryEngine::StatesToString(Accessibility::Accessible* accessible)
+std::string NodeProxyQueryEngine::StatesToString(Accessibility::States states)
 {
-  auto states = accessible->GetStates();
-
   static const std::pair<Accessibility::State, const char*> stateNames[] = {
     {Accessibility::State::ENABLED, "ENABLED"},
     {Accessibility::State::VISIBLE, "VISIBLE"},
@@ -98,122 +95,127 @@ std::string DirectQueryEngine::StatesToString(Accessibility::Accessible* accessi
   return result.empty() ? "(none)" : result;
 }
 
-uint32_t DirectQueryEngine::ExtractId(Accessibility::Accessible* accessible)
-{
-  auto path = accessible->GetAddress().GetPath();
-  try
-  {
-    return static_cast<uint32_t>(std::stoul(path));
-  }
-  catch(...)
-  {
-    return 0;
-  }
-}
-
-void DirectQueryEngine::TraverseTree(Accessibility::Accessible* node, uint32_t parentId)
+void NodeProxyQueryEngine::TraverseTree(std::shared_ptr<Accessibility::NodeProxy> node, uint32_t parentId, uint32_t& nextId)
 {
   if(!node) return;
 
-  uint32_t id = ExtractId(node);
-  if(id == 0) return;
+  uint32_t id = nextId++;
 
   CachedElement elem;
   elem.id          = id;
-  elem.name        = node->GetName();
-  elem.role        = RoleToString(node->GetRole());
-  elem.description = node->GetDescription();
-  elem.states      = StatesToString(node);
+  elem.name        = node->getName();
+  elem.role        = RoleToString(node->getRole());
+  elem.description = node->getDescription();
+  elem.states      = StatesToString(node->getStates());
   elem.parentId    = parentId;
-  elem.accessible  = node;
 
-  auto extents     = node->GetExtents(Accessibility::CoordinateType::SCREEN);
-  elem.boundsX     = extents.x;
-  elem.boundsY     = extents.y;
-  elem.boundsWidth = extents.width;
-  elem.boundsHeight = extents.height;
+  auto extents      = node->getExtents(Accessibility::CoordinateType::SCREEN);
+  elem.boundsX      = static_cast<float>(extents.x);
+  elem.boundsY      = static_cast<float>(extents.y);
+  elem.boundsWidth  = static_cast<float>(extents.width);
+  elem.boundsHeight = static_cast<float>(extents.height);
 
-  auto children     = node->GetChildren();
-  elem.childCount   = static_cast<int>(children.size());
-  for(auto* child : children)
+  auto children    = node->getChildren();
+  elem.childCount  = static_cast<int>(children.size());
+
+  // Reserve child IDs
+  std::vector<uint32_t> childIds;
+  uint32_t childStartId = nextId;
+  for(size_t i = 0; i < children.size(); ++i)
   {
-    uint32_t childId = ExtractId(child);
-    if(childId != 0)
-    {
-      elem.childIds.push_back(childId);
-    }
+    childIds.push_back(childStartId + static_cast<uint32_t>(i));
   }
+  // Adjust: we don't know subtree sizes yet, so we traverse sequentially
+  childIds.clear();
 
   mSnapshot[id] = std::move(elem);
 
-  for(auto* child : children)
+  for(auto& child : children)
   {
-    TraverseTree(child, id);
+    uint32_t childId = nextId;
+    mSnapshot[id].childIds.push_back(childId);
+    TraverseTree(child, id, nextId);
   }
+  mSnapshot[id].childCount = static_cast<int>(mSnapshot[id].childIds.size());
 }
 
-void DirectQueryEngine::BuildSnapshot(Accessibility::Accessible* root)
+void NodeProxyQueryEngine::BuildSnapshot(std::shared_ptr<Accessibility::NodeProxy> root)
 {
+  std::lock_guard<std::mutex> lock(mMutex);
+
   mSnapshot.clear();
   mHighlightableOrder.clear();
   if(!root) return;
 
-  mRootId = ExtractId(root);
-  TraverseTree(root, 0);
+  uint32_t nextId = 1;
+  mRootId = nextId;
+  TraverseTree(root, 0, nextId);
 
-  // Build highlightable order from depth-first traversal
   BuildHighlightableOrder(mRootId);
 
-  // Default focused to first highlightable element in tree order
   if(mFocusedId == 0 && !mHighlightableOrder.empty())
   {
     mFocusedId = mHighlightableOrder.front();
   }
 }
 
-uint32_t DirectQueryEngine::GetRootId() const
+void NodeProxyQueryEngine::BuildHighlightableOrder(uint32_t nodeId)
 {
+  auto it = mSnapshot.find(nodeId);
+  if(it == mSnapshot.end()) return;
+
+  auto& elem = it->second;
+  if(elem.states.find("HIGHLIGHTABLE") != std::string::npos)
+  {
+    mHighlightableOrder.push_back(nodeId);
+  }
+
+  for(auto childId : elem.childIds)
+  {
+    BuildHighlightableOrder(childId);
+  }
+}
+
+uint32_t NodeProxyQueryEngine::GetRootId() const
+{
+  std::lock_guard<std::mutex> lock(mMutex);
   return mRootId;
 }
 
-uint32_t DirectQueryEngine::GetFocusedId() const
+uint32_t NodeProxyQueryEngine::GetFocusedId() const
 {
+  std::lock_guard<std::mutex> lock(mMutex);
   return mFocusedId;
 }
 
-void DirectQueryEngine::SetFocusedId(uint32_t id)
+void NodeProxyQueryEngine::SetFocusedId(uint32_t id)
 {
-  mFocusedId = id;
+  {
+    std::lock_guard<std::mutex> lock(mMutex);
+    mFocusedId = id;
+  }
   if(mFocusChangedCallback)
   {
     mFocusChangedCallback(id);
   }
 }
 
-void DirectQueryEngine::SetFocusChangedCallback(std::function<void(uint32_t)> callback)
+void NodeProxyQueryEngine::SetFocusChangedCallback(std::function<void(uint32_t)> callback)
 {
   mFocusChangedCallback = std::move(callback);
 }
 
-Accessibility::Accessible* DirectQueryEngine::GetAccessible(uint32_t id) const
+ElementInfo NodeProxyQueryEngine::GetElementInfo(uint32_t id)
 {
-  auto it = mSnapshot.find(id);
-  if(it != mSnapshot.end())
-  {
-    return it->second.accessible;
-  }
-  return nullptr;
-}
+  std::lock_guard<std::mutex> lock(mMutex);
 
-ElementInfo DirectQueryEngine::GetElementInfo(uint32_t id)
-{
   auto it = mSnapshot.find(id);
   if(it == mSnapshot.end())
   {
     ElementInfo info{};
-    info.id   = id;
-    info.name = "(not found)";
-    info.role = "UNKNOWN";
+    info.id    = id;
+    info.name  = "(not found)";
+    info.role  = "UNKNOWN";
     info.states = "(none)";
     return info;
   }
@@ -235,8 +237,10 @@ ElementInfo DirectQueryEngine::GetElementInfo(uint32_t id)
   return info;
 }
 
-TreeNode DirectQueryEngine::BuildTree(uint32_t rootId)
+TreeNode NodeProxyQueryEngine::BuildTree(uint32_t rootId)
 {
+  std::lock_guard<std::mutex> lock(mMutex);
+
   TreeNode node;
   node.id = rootId;
 
@@ -249,46 +253,63 @@ TreeNode DirectQueryEngine::BuildTree(uint32_t rootId)
     return node;
   }
 
-  auto& elem      = it->second;
+  auto& elem       = it->second;
   node.name        = elem.name;
   node.role        = elem.role;
   node.childCount  = elem.childCount;
 
   for(auto childId : elem.childIds)
   {
-    node.children.push_back(BuildTree(childId));
+    // Temporarily release lock for recursive call — but since
+    // snapshot is only modified in BuildSnapshot, this is safe
+    // as long as BuildSnapshot is not called concurrently.
+    // For simplicity, use non-locking internal helper.
+    TreeNode childNode;
+    childNode.id = childId;
+    auto childIt = mSnapshot.find(childId);
+    if(childIt != mSnapshot.end())
+    {
+      childNode.name       = childIt->second.name;
+      childNode.role       = childIt->second.role;
+      childNode.childCount = childIt->second.childCount;
+      // Build children recursively (inline to avoid deadlock)
+      std::function<void(TreeNode&)> buildChildren = [&](TreeNode& parent)
+      {
+        auto parentIt = mSnapshot.find(parent.id);
+        if(parentIt == mSnapshot.end()) return;
+        for(auto cid : parentIt->second.childIds)
+        {
+          TreeNode cn;
+          cn.id = cid;
+          auto cit = mSnapshot.find(cid);
+          if(cit != mSnapshot.end())
+          {
+            cn.name       = cit->second.name;
+            cn.role       = cit->second.role;
+            cn.childCount = cit->second.childCount;
+            buildChildren(cn);
+          }
+          parent.children.push_back(std::move(cn));
+        }
+      };
+      buildChildren(childNode);
+    }
+    node.children.push_back(std::move(childNode));
   }
 
   return node;
 }
 
-void DirectQueryEngine::BuildHighlightableOrder(uint32_t nodeId)
+uint32_t NodeProxyQueryEngine::Navigate(uint32_t currentId, bool forward)
 {
-  auto it = mSnapshot.find(nodeId);
-  if(it == mSnapshot.end()) return;
+  std::lock_guard<std::mutex> lock(mMutex);
 
-  auto& elem = it->second;
-  if(elem.states.find("HIGHLIGHTABLE") != std::string::npos)
-  {
-    mHighlightableOrder.push_back(nodeId);
-  }
-
-  for(auto childId : elem.childIds)
-  {
-    BuildHighlightableOrder(childId);
-  }
-}
-
-uint32_t DirectQueryEngine::Navigate(uint32_t currentId, bool forward)
-{
   if(mHighlightableOrder.empty()) return currentId;
 
-  // Find current position in highlightable order
   auto it = std::find(mHighlightableOrder.begin(), mHighlightableOrder.end(), currentId);
 
   if(it == mHighlightableOrder.end())
   {
-    // Current element not highlightable — go to first
     return mHighlightableOrder.front();
   }
 
@@ -297,14 +318,14 @@ uint32_t DirectQueryEngine::Navigate(uint32_t currentId, bool forward)
     ++it;
     if(it == mHighlightableOrder.end())
     {
-      it = mHighlightableOrder.begin(); // wrap around
+      it = mHighlightableOrder.begin();
     }
   }
   else
   {
     if(it == mHighlightableOrder.begin())
     {
-      it = mHighlightableOrder.end(); // wrap around
+      it = mHighlightableOrder.end();
     }
     --it;
   }
@@ -312,8 +333,10 @@ uint32_t DirectQueryEngine::Navigate(uint32_t currentId, bool forward)
   return *it;
 }
 
-uint32_t DirectQueryEngine::NavigateChild(uint32_t currentId)
+uint32_t NodeProxyQueryEngine::NavigateChild(uint32_t currentId)
 {
+  std::lock_guard<std::mutex> lock(mMutex);
+
   auto it = mSnapshot.find(currentId);
   if(it == mSnapshot.end() || it->second.childIds.empty())
   {
@@ -322,14 +345,22 @@ uint32_t DirectQueryEngine::NavigateChild(uint32_t currentId)
   return it->second.childIds.front();
 }
 
-uint32_t DirectQueryEngine::NavigateParent(uint32_t currentId)
+uint32_t NodeProxyQueryEngine::NavigateParent(uint32_t currentId)
 {
+  std::lock_guard<std::mutex> lock(mMutex);
+
   auto it = mSnapshot.find(currentId);
   if(it == mSnapshot.end() || it->second.parentId == 0)
   {
     return currentId;
   }
   return it->second.parentId;
+}
+
+size_t NodeProxyQueryEngine::GetSnapshotSize() const
+{
+  std::lock_guard<std::mutex> lock(mMutex);
+  return mSnapshot.size();
 }
 
 } // namespace InspectorEngine

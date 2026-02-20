@@ -50,7 +50,7 @@ gantt
     TIDL Backend               :p26, 2026-04, 2026-06
 
     section Phase 3
-    AccessibilityService Base   :p3, 2026-04, 2026-07
+    AccessibilityService Base   :done, p3, 2026-02, 2026-02
 
     section Phase 4
     Screen Reader (C++)         :p4a, 2026-07, 2026-10
@@ -67,8 +67,8 @@ gantt
 | **2.5** | eldbus → GDBus migration | **DONE** |
 | **2.6** | TIDL IPC backend | **Stage A DONE** (scaffold + tidlc 코드 생성), Stage B/C는 Tizen 디바이스 필요 |
 | **2.7** | Tree embedding 테스트 | **DONE** |
-| **3** | AccessibilityService base class | TODO |
-| **4** | Screen reader C++ rewrite | TODO |
+| **3** | AccessibilityService base class | **DONE** (55 service tests + 56 existing) |
+| **4** | Concrete services (Inspector + ScreenReader) | **DONE** (47 inspector + 120 screen reader tests) |
 | **5** | DALi toolkit integration | TODO |
 
 ---
@@ -431,7 +431,7 @@ macOS에서 `tidlc` 바이너리(v2.3.3)로 C++ stub/proxy 코드 생성은 가�
 
 ---
 
-## 8. Phase 3: AccessibilityService Base Class (TODO)
+## 8. Phase 3: AccessibilityService Base Class (DONE — 55 service tests + 56 existing)
 
 ### Problem
 
@@ -722,11 +722,21 @@ accessibility-common/
 │   │   │   ├── bridge-impl.cpp
 │   │   │   └── bridge-*.cpp          # 12 bridge modules
 │   │   │
-│   │   └── service/                  # ← Phase 3: AT-side service
-│   │       ├── atspi-node-proxy.cpp
-│   │       ├── atspi-app-registry.cpp
-│   │       ├── atspi-event-router.cpp
-│   │       └── window-tracker.cpp
+│   │   └── service/                  # ← Phase 3: AT-side service (DONE)
+│   │       ├── accessibility-service-impl.cpp
+│   │       ├── atspi-node-proxy.h/.cpp
+│   │       ├── atspi-app-registry.h/.cpp
+│   │       ├── atspi-event-router.h/.cpp
+│   │       ├── composite-app-registry.h/.cpp
+│   │       ├── window-tracker.h/.cpp
+│   │       ├── stub/
+│   │       │   ├── stub-app-registry.h
+│   │       │   └── stub-gesture-provider.h
+│   │       ├── tidl/
+│   │       │   ├── tidl-app-registry.h
+│   │       │   ├── tidl-event-router.h
+│   │       │   └── tidl-node-proxy.h
+│   │       └── file.list
 │   │
 │   └── service/                      # ← Phase 4: service implementations
 │       └── screen-reader/
@@ -739,7 +749,15 @@ accessibility-common/
 │   └── screen-reader/               # ← Phase 4: screen reader binary
 │       └── main.cpp
 │
-├── test/                             # Tests (31 existing + growing)
+├── test/                             # Tests (56 existing + 55 service)
+│   ├── mock/
+│   │   ├── mock-node-proxy.h
+│   │   ├── mock-app-registry.h
+│   │   ├── mock-gesture-provider.h
+│   │   └── mock-dbus-wrapper.h/.cpp
+│   ├── test-accessible.h/.cpp
+│   ├── test-app.cpp
+│   └── test-service.cpp
 ├── build/tizen/                      # CMake build
 └── docs/
     ├── architecture-overview.md      # This document (concise)
@@ -856,7 +874,7 @@ graph TB
 | 2 | `accessibility-test` (unchanged) | 31 passed |
 | 2.5 | + GDBus integration test on session bus | 31 + N passed |
 | 2.7 | + Tree embedding unit tests | 31 + 10 passed |
-| 3 | + AccessibilityService unit tests (mock providers) | 31 + N passed |
+| 3 | + AccessibilityService unit tests (mock providers) | 56 + 55 passed |
 | 4a | Screen reader binary vs AT-SPI apps | End-to-end TTS |
 | 5 | Full stack rebuild + existing AT-SPI consumers | Zero behavior change |
 | Full stack | accessibility-common → dali-adaptor → dali-toolkit → dali-demo | GUI app with a11y |

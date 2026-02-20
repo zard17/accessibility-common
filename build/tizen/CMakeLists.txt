@@ -323,6 +323,60 @@ IF( BUILD_INSPECTOR_LIB )
     DESTINATION ${DEV_INCLUDE_PATH}/cpp-httplib )
 ENDIF()
 
+# InspectorService unit tests
+OPTION( BUILD_INSPECTOR_SERVICE_TESTS "Build InspectorService unit tests" OFF )
+IF( BUILD_INSPECTOR_SERVICE_TESTS )
+  FIND_PACKAGE( Threads REQUIRED )
+  SET( INSPECTOR_SERVICE_TEST_SOURCES
+    ${accessibility_common_atspi_bridge_src_files}
+    ${accessibility_common_dbus_stub_src_files}
+    ${accessibility_common_api_src_files}
+    ${accessibility_common_internal_dir}/bridge/bridge-platform.cpp
+    ${accessibility_common_service_src_files}
+    ${accessibility_common_internal_dir}/service/inspector-service.cpp
+    ${accessibility_common_root}/tools/inspector/node-proxy-query-engine.cpp
+    ${accessibility_common_root}/tools/inspector/web-inspector-server.cpp
+  )
+  ADD_EXECUTABLE( accessibility-inspector-service-test
+    ${INSPECTOR_SERVICE_TEST_SOURCES}
+    ${accessibility_common_root}/test/mock/mock-dbus-wrapper.cpp
+    ${accessibility_common_root}/test/test-accessible.cpp
+    ${accessibility_common_root}/test/test-inspector-service.cpp
+  )
+  TARGET_INCLUDE_DIRECTORIES( accessibility-inspector-service-test PRIVATE
+    ${accessibility_common_root}
+    ${accessibility_common_root}/third-party
+  )
+  TARGET_LINK_LIBRARIES( accessibility-inspector-service-test Threads::Threads )
+ENDIF()
+
+# InspectorService standalone binary
+OPTION( BUILD_INSPECTOR_SERVICE "Build InspectorService standalone binary" OFF )
+IF( BUILD_INSPECTOR_SERVICE )
+  FIND_PACKAGE( Threads REQUIRED )
+  SET( INSPECTOR_SERVICE_SOURCES
+    ${accessibility_common_atspi_bridge_src_files}
+    ${accessibility_common_dbus_stub_src_files}
+    ${accessibility_common_api_src_files}
+    ${accessibility_common_internal_dir}/bridge/bridge-platform.cpp
+    ${accessibility_common_service_src_files}
+    ${accessibility_common_internal_dir}/service/inspector-service.cpp
+    ${accessibility_common_root}/tools/inspector/node-proxy-query-engine.cpp
+    ${accessibility_common_root}/tools/inspector/web-inspector-server.cpp
+  )
+  ADD_EXECUTABLE( accessibility-inspector-service
+    ${INSPECTOR_SERVICE_SOURCES}
+    ${accessibility_common_root}/test/mock/mock-dbus-wrapper.cpp
+    ${accessibility_common_root}/test/test-accessible.cpp
+    ${accessibility_common_root}/tools/inspector/inspector-service-main.cpp
+  )
+  TARGET_INCLUDE_DIRECTORIES( accessibility-inspector-service PRIVATE
+    ${accessibility_common_root}
+    ${accessibility_common_root}/third-party
+  )
+  TARGET_LINK_LIBRARIES( accessibility-inspector-service Threads::Threads )
+ENDIF()
+
 # GDBus backend tests (require dbus-daemon and gio-2.0)
 OPTION( BUILD_GDBUS_TESTS "Build GDBus backend tests (requires dbus-daemon)" OFF )
 IF( BUILD_GDBUS_TESTS )
@@ -418,6 +472,26 @@ IF( BUILD_WEB_INSPECTOR_GDBUS )
   TARGET_LINK_LIBRARIES( accessibility-web-inspector-gdbus ${GIO_LDFLAGS} Threads::Threads )
 ENDIF()
 
+# ScreenReaderService unit tests
+OPTION( BUILD_SCREEN_READER_TESTS "Build ScreenReaderService unit tests" OFF )
+IF( BUILD_SCREEN_READER_TESTS )
+  SET( SCREEN_READER_TEST_SOURCES
+    ${accessibility_common_atspi_bridge_src_files}
+    ${accessibility_common_dbus_stub_src_files}
+    ${accessibility_common_api_src_files}
+    ${accessibility_common_internal_dir}/bridge/bridge-platform.cpp
+    ${accessibility_common_service_src_files}
+    ${accessibility_common_screen_reader_src_files}
+  )
+  ADD_EXECUTABLE( accessibility-screen-reader-test
+    ${SCREEN_READER_TEST_SOURCES}
+    ${accessibility_common_root}/test/mock/mock-dbus-wrapper.cpp
+    ${accessibility_common_root}/test/test-accessible.cpp
+    ${accessibility_common_root}/test/test-screen-reader-service.cpp
+  )
+  TARGET_INCLUDE_DIRECTORIES( accessibility-screen-reader-test PRIVATE ${accessibility_common_root} )
+ENDIF()
+
 MESSAGE( STATUS "" )
 MESSAGE( STATUS "Configuration:" )
 MESSAGE( STATUS "  Prefix:                   ${PREFIX}" )
@@ -434,4 +508,7 @@ MESSAGE( STATUS "  Build Direct Inspector:   ${BUILD_WEB_INSPECTOR_DIRECT}" )
 MESSAGE( STATUS "  Build GDBus Tests:        ${BUILD_GDBUS_TESTS}" )
 MESSAGE( STATUS "  Build GDBus Web Inspector: ${BUILD_WEB_INSPECTOR_GDBUS}" )
 MESSAGE( STATUS "  Build Service Tests:      ${BUILD_SERVICE_TESTS}" )
+MESSAGE( STATUS "  Build Inspector Service Tests: ${BUILD_INSPECTOR_SERVICE_TESTS}" )
+MESSAGE( STATUS "  Build Inspector Service:  ${BUILD_INSPECTOR_SERVICE}" )
+MESSAGE( STATUS "  Build Screen Reader Tests: ${BUILD_SCREEN_READER_TESTS}" )
 MESSAGE( STATUS "" )

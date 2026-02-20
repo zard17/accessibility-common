@@ -24,6 +24,7 @@
 namespace InspectorEngine
 {
 class DirectQueryEngine;
+class InspectorQueryInterface;
 
 /**
  * @brief Embeddable HTTP server that serves the web inspector frontend and REST API.
@@ -41,8 +42,13 @@ public:
   /**
    * @brief Starts the HTTP server on a background thread.
    *
-   * @param[in] engine Reference to the DirectQueryEngine to serve data from
+   * @param[in] engine Reference to the query engine to serve data from
    * @param[in] port The port to listen on (default 8080)
+   */
+  void Start(InspectorQueryInterface& engine, int port = 8080);
+
+  /**
+   * @brief Starts the HTTP server using a DirectQueryEngine (backward compat).
    */
   void Start(DirectQueryEngine& engine, int port = 8080);
 

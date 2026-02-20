@@ -17,6 +17,7 @@
 
 // INTERNAL INCLUDES
 #include <tools/inspector/web-inspector-server.h>
+#include <tools/inspector/inspector-query-interface.h>
 #include <tools/inspector/direct-query-engine.h>
 #include <tools/inspector/web-inspector-resources.h>
 
@@ -134,7 +135,7 @@ WebInspectorServer::~WebInspectorServer()
   Stop();
 }
 
-void WebInspectorServer::Start(DirectQueryEngine& engine, int port)
+void WebInspectorServer::Start(InspectorQueryInterface& engine, int port)
 {
   if(mImpl->running) return;
 
@@ -196,6 +197,14 @@ void WebInspectorServer::Start(DirectQueryEngine& engine, int port)
     {
       newId = engine.Navigate(currentId, false);
     }
+    else if(direction == "child")
+    {
+      newId = engine.NavigateChild(currentId);
+    }
+    else if(direction == "parent")
+    {
+      newId = engine.NavigateParent(currentId);
+    }
 
     engine.SetFocusedId(newId);
     auto info = engine.GetElementInfo(newId);
@@ -212,6 +221,11 @@ void WebInspectorServer::Start(DirectQueryEngine& engine, int port)
   mImpl->thread = std::thread([this, port]() {
     mImpl->server.listen("0.0.0.0", port);
   });
+}
+
+void WebInspectorServer::Start(DirectQueryEngine& engine, int port)
+{
+  Start(static_cast<InspectorQueryInterface&>(engine), port);
 }
 
 void WebInspectorServer::Stop()

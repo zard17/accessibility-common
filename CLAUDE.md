@@ -62,6 +62,30 @@ make -j$(nproc)
 # Expected: "=== Results: 55 passed, 0 failed ==="
 ```
 
+## Running InspectorService Tests
+
+```bash
+cd build/tizen && mkdir -p build && cd build
+
+cmake .. -DENABLE_ATSPI=ON -DBUILD_INSPECTOR_SERVICE_TESTS=ON -DENABLE_PKG_CONFIGURE=OFF
+make -j$(nproc)
+
+./accessibility-inspector-service-test
+# Expected: "=== Results: 47 passed, 0 failed ==="
+```
+
+## Running ScreenReaderService Tests
+
+```bash
+cd build/tizen && mkdir -p build && cd build
+
+cmake .. -DENABLE_ATSPI=ON -DBUILD_SCREEN_READER_TESTS=ON -DENABLE_PKG_CONFIGURE=OFF
+make -j$(nproc)
+
+./accessibility-screen-reader-test
+# Expected: "=== Results: 120 passed, 0 failed ==="
+```
+
 ## Running the Accessibility Inspector
 
 The inspector is an interactive CLI tool that demonstrates accessibility working end-to-end. It creates a demo Tizen-like accessible tree, initializes the bridge with MockDBusWrapper, and lets you browse the tree and hear TTS output.
@@ -248,6 +272,23 @@ server.Stop();
 - `test/mock/mock-node-proxy.h` - Mock `NodeProxy` backed by `TestAccessible*` (no IPC, DFS neighbor navigation).
 - `test/mock/mock-app-registry.h` - Mock `AppRegistry` with demo tree and `MockNodeProxy` factory.
 - `test/test-service.cpp` - 55 unit tests for `AccessibilityService`, `NodeProxy`, navigation, events, gestures.
+- `tools/inspector/inspector-query-interface.h` - Abstract `InspectorQueryInterface` for NodeProxy-based and Accessible*-based query engines.
+- `tools/inspector/node-proxy-query-engine.h` - NodeProxy-based tree snapshot engine (thread-safe).
+- `accessibility/internal/service/inspector-service.h` - `InspectorService` extends `AccessibilityService` with web inspector.
+- `test/test-inspector-service.cpp` - 47 unit tests for InspectorService + NodeProxyQueryEngine.
+- `accessibility/api/tts-engine.h` - `TtsEngine` interface (speak, stop, pause, resume, purge, utterance callbacks) + `SpeakOptions`, `CommandId`.
+- `accessibility/api/feedback-provider.h` - `FeedbackProvider` interface (playSound, vibrate) + `SoundType` enum (7 types).
+- `accessibility/api/reading-composer.h` - `ReadingComposer` class + `ReadingComposerConfig` for TV/mobile.
+- `accessibility/api/settings-provider.h` - `SettingsProvider` interface + `ScreenReaderSettings` struct (7 fields).
+- `accessibility/api/screen-reader-switch.h` - `ScreenReaderSwitch` interface (org.a11y.Status + WM control).
+- `accessibility/api/direct-reading-service.h` - `DirectReadingService` interface (org.tizen.DirectReading).
+- `accessibility/api/screen-reader-service.h` - `ScreenReaderService` (full mode) + `TvScreenReaderService` (TV mode) headers.
+- `accessibility/internal/service/screen-reader/reading-composer.cpp` - Role/state/description trait composition (~30 roles).
+- `accessibility/internal/service/screen-reader/tts-command-queue.h/.cpp` - Pure C++ TTS queue with 300-char chunking, discard policy, pause/resume.
+- `accessibility/internal/service/screen-reader/symbol-table.h/.cpp` - 53 symbol→spoken text mappings.
+- `accessibility/internal/service/screen-reader/screen-reader-service.cpp` - Full mode: gesture dispatch, event handling, TTS, feedback.
+- `accessibility/internal/service/screen-reader/tv-screen-reader-service.cpp` - TV mode: focus-only events, no gestures.
+- `test/test-screen-reader-service.cpp` - 120 unit tests for ScreenReaderService, TvScreenReaderService, ReadingComposer, TtsCommandQueue, SymbolTable.
 
 ## Rules
 

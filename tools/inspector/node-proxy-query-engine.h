@@ -1,5 +1,5 @@
-#ifndef ACCESSIBILITY_TOOLS_INSPECTOR_DIRECT_QUERY_ENGINE_H
-#define ACCESSIBILITY_TOOLS_INSPECTOR_DIRECT_QUERY_ENGINE_H
+#ifndef ACCESSIBILITY_TOOLS_INSPECTOR_NODE_PROXY_QUERY_ENGINE_H
+#define ACCESSIBILITY_TOOLS_INSPECTOR_NODE_PROXY_QUERY_ENGINE_H
 
 /*
  * Copyright (c) 2026 Samsung Electronics Co., Ltd.
@@ -21,38 +21,40 @@
 // EXTERNAL INCLUDES
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 // INTERNAL INCLUDES
+#include <accessibility/api/accessibility.h>
 #include <tools/inspector/inspector-query-interface.h>
 #include <tools/inspector/inspector-types.h>
 
 namespace Accessibility
 {
-class Accessible;
-enum class Role : uint32_t;
+class NodeProxy;
 } // namespace Accessibility
 
 namespace InspectorEngine
 {
 /**
- * @brief Engine that queries Accessible objects directly via their C++ interface.
+ * @brief Engine that queries NodeProxy objects to build a snapshot.
  *
- * Unlike AccessibilityQueryEngine which routes through D-Bus, this engine
- * calls GetName(), GetRole(), GetStates(), etc. on Accessible* objects directly.
- * This works on any platform without requiring a D-Bus daemon.
+ * Unlike DirectQueryEngine which uses Accessible* objects directly,
+ * this engine uses NodeProxy (IPC-agnostic). This allows the InspectorService
+ * to work over any transport (D-Bus, TIDL, in-process).
  *
  * Usage:
  * 1. Call BuildSnapshot(root) from the main thread to capture the tree.
  * 2. Call GetElementInfo/BuildTree from any thread (reads immutable snapshot).
  */
-class DirectQueryEngine : public InspectorQueryInterface
+class NodeProxyQueryEngine : public InspectorQueryInterface
 {
 public:
-  DirectQueryEngine();
-  ~DirectQueryEngine();
+  NodeProxyQueryEngine();
+  ~NodeProxyQueryEngine();
 
   /**
    * @brief Traverses the tree from root, building an immutable snapshot.
@@ -60,9 +62,9 @@ public:
    * Must be called from the main thread. After this call, all query methods
    * read from the cached snapshot and are thread-safe.
    *
-   * @param[in] root The root accessible to traverse
+   * @param[in] root The root NodeProxy to traverse
    */
-  void BuildSnapshot(Accessibility::Accessible* root);
+  void BuildSnapshot(std::shared_ptr<Accessibility::NodeProxy> root);
 
   /**
    * @brief Returns the root element ID.
@@ -76,18 +78,11 @@ public:
 
   /**
    * @brief Sets the currently focused element ID.
-   *
-   * If a focus change callback has been set, it will be invoked.
    */
   void SetFocusedId(uint32_t id) override;
 
   /**
    * @brief Sets a callback invoked when the focused element changes.
-   *
-   * The callback receives the new focused element ID. This allows external
-   * code (e.g., DALi) to render a highlight when the web inspector changes focus.
-   *
-   * @param[in] callback Function called with the new focused ID
    */
   void SetFocusChangedCallback(std::function<void(uint32_t)> callback);
 
@@ -103,9 +98,6 @@ public:
 
   /**
    * @brief Navigates to the next or previous highlightable element.
-   * @param[in] currentId The current element ID
-   * @param[in] forward true for next, false for previous
-   * @return The new element ID, or currentId if no navigation possible
    */
   uint32_t Navigate(uint32_t currentId, bool forward) override;
 
@@ -120,22 +112,9 @@ public:
   uint32_t NavigateParent(uint32_t currentId) override;
 
   /**
-   * @brief Returns the live Accessible pointer for the given ID.
-   *
-   * Only valid while the original tree objects are alive.
-   * @return The Accessible pointer, or nullptr if not found
+   * @brief Returns the number of elements in the snapshot.
    */
-  Accessibility::Accessible* GetAccessible(uint32_t id) const;
-
-  /**
-   * @brief Converts a Role enum to its string name.
-   */
-  static std::string RoleToString(Accessibility::Role role);
-
-  /**
-   * @brief Converts States bitset to a comma-separated string.
-   */
-  static std::string StatesToString(Accessibility::Accessible* accessible);
+  size_t GetSnapshotSize() const;
 
 private:
   struct CachedElement
@@ -152,22 +131,21 @@ private:
     int         childCount{0};
     std::vector<uint32_t> childIds;
     uint32_t    parentId{0};
-    Accessibility::Accessible* accessible{nullptr}; ///< Live pointer (valid while tree exists)
   };
 
-  void TraverseTree(Accessibility::Accessible* node, uint32_t parentId);
-
+  void TraverseTree(std::shared_ptr<Accessibility::NodeProxy> node, uint32_t parentId, uint32_t& nextId);
   void BuildHighlightableOrder(uint32_t nodeId);
+  static std::string RoleToString(Accessibility::Role role);
+  static std::string StatesToString(Accessibility::States states);
 
-  static uint32_t ExtractId(Accessibility::Accessible* accessible);
-
-  std::unordered_map<uint32_t, CachedElement> mSnapshot;
-  std::vector<uint32_t>                       mHighlightableOrder; ///< IDs in depth-first order, HIGHLIGHTABLE only
-  std::function<void(uint32_t)>               mFocusChangedCallback;
-  uint32_t                                    mRootId{0};
-  uint32_t                                    mFocusedId{0};
+  mutable std::mutex                              mMutex;
+  std::unordered_map<uint32_t, CachedElement>     mSnapshot;
+  std::vector<uint32_t>                           mHighlightableOrder;
+  std::function<void(uint32_t)>                   mFocusChangedCallback;
+  uint32_t                                        mRootId{0};
+  uint32_t                                        mFocusedId{0};
 };
 
 } // namespace InspectorEngine
 
-#endif // ACCESSIBILITY_TOOLS_INSPECTOR_DIRECT_QUERY_ENGINE_H
+#endif // ACCESSIBILITY_TOOLS_INSPECTOR_NODE_PROXY_QUERY_ENGINE_H
