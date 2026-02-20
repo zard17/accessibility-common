@@ -1,132 +1,95 @@
-# Handover: Phase 4.6 — TV Screen Reader Demo (DALi FocusManager + TvScreenReaderService)
+# Handover: Phase 5 Complete + Dead Code Cleanup
 
 ## 완료된 Phase 상태
 
 | Phase | Status |
 |-------|--------|
-| 2.5 (GDBus) | **DONE** — `dbus-gdbus.cpp`, unit 48개 + integration 42개 테스트 통과 |
-| 2.6 (TIDL) | **Stage A DONE** — scaffold + tidlc 코드 생성 검증. Stage B/C는 Tizen 디바이스 필요 |
-| 2.7 (Tree embedding) | **DONE** — Socket/Plug embed/unembed/setOffset 테스트 완료 |
-| 3 (AccessibilityService) | **DONE** — 55개 서비스 테스트 + 56개 기존 테스트 통과 |
-| 4 (Concrete Services) | **DONE** — InspectorService (47 tests) + ScreenReaderService (120 tests) |
-| 4.5 (Screen Reader Demo) | **DONE** — 실제 DALi 앱 + 임베디드 ScreenReaderService + macOS TTS |
-| **4.6 (TV Screen Reader Demo)** | **DONE** — DALi KeyboardFocusManager + TvScreenReaderService + macOS TTS |
+| 1 (DALi 분리) | **DONE** |
+| 2 (IPC 추상화) | **DONE** |
+| 2.5 (GDBus) | **DONE** |
+| 2.6 (TIDL) | **Stage A DONE** (Stage B/C는 Tizen 디바이스 필요) |
+| 2.7 (Tree embedding) | **DONE** |
+| 3 (AccessibilityService) | **DONE** — 55 service tests |
+| 4 (Concrete Services) | **DONE** — 47 inspector + 120 screen reader tests |
+| 4.5 (Screen Reader Demo) | **DONE** |
+| 4.6 (TV Screen Reader Demo) | **DONE** |
+| **5 (DALi Integration)** | **DONE** — adaptor + toolkit + demo + dead code cleanup |
 
-## Phase 4.6: TV Screen Reader Demo
+## 이번 세션에서 한 일
 
-### 개요
+### 1. dali-adaptor: Dead code cleanup (commit `8cf2f87`)
 
-TV 프로파일용 screen reader 데모. 기존 Phase 4.5 데모가 gesture 기반(키보드로 flick 시뮬레이션)인 반면, TV 데모는 DALi의 `KeyboardFocusManager`가 직접 focus를 이동하고, `FocusChangedSignal`을 통해 `TvScreenReaderService`에 이벤트를 전달하여 TTS 발화. 리모컨(방향키) 기반 TV 경험을 macOS에서 재현.
+Phase 5 이후 남은 잔여 코드 정리:
 
-### ScreenReaderService vs TvScreenReaderService
+- **8 파일 삭제**: consumer 0인 forwarding headers 4개 (`application.h`, `component.h`, `socket.h`, `accessibility-feature.h`), 빈 `.cpp` 2개, `accessibility-bitset.h` (accessibility.h에 inline), `build.log` (2.8MB artifact)
+- **4 파일 수정**: `accessibility.h` (bitset inline), `file.list` (6 entries 제거), `dali-adaptor.spec` (stale `-DENABLE_ATSPI=ON` 제거, eldbus 주석 수정), `.gitignore` (`build.log` 추가)
+- 빌드 성공, 231 tests passed (56+55+120)
 
-| | ScreenReaderService (Phase 4.5) | TvScreenReaderService (Phase 4.6) |
-|---|---|---|
-| Trigger | `STATE_CHANGED detail="highlighted"` | `STATE_CHANGED detail="focused"` |
-| Navigation | Service가 `navigateNext()` 호출 | **KeyboardFocusManager**가 focus 이동 |
-| Gesture | 키보드→gesture 매핑 필요 | **No-op** (StubGestureProvider) |
-| Dependencies | 7개 | **4개** (registry, gesture, tts, settings) |
-| ReadingComposer | 기본 (touch hints 포함) | TV config (touch hints 억제) |
+### 2. Branches pushed
 
-### 아키텍처
+| Repo | Branch | Commits |
+|------|--------|---------|
+| dali-adaptor | `youngsus/250220-cleanup-dead-accessibility-code` | 3 (Phase 5b + DefaultLabel + cleanup) |
+| dali-toolkit | `youngsus/250220-phase5-accessibility-common` | 3 (ActorAccessible migration + API adapt + DefaultLabel fix) |
+| dali-demo | `youngsus/250220-phase5-accessibility-common` | 3 (namespace qualify + inspector demo + highlight dispatch) |
+
+### 3. 문서 업데이트
+
+- `docs/architecture-overview.md`: Phase 5 status DONE, Gantt chart 업데이트, Phase 10 섹션 완료 내용으로 교체, Verification 테이블 업데이트
+- `Handover.md`: 이번 세션 내용으로 교체
+
+## 테스트 결과
 
 ```
-DALi Application (real Controls: TextLabel, PushButton, CheckBox, ProgressBar)
-  │
-  ├── KeyboardFocusManager (DALi built-in)
-  │     Arrow keys → MoveFocus() → FocusChangedSignal 발생
-  │     Enter → FocusedActorEnterKeySignal 발생
-  │
-  ├── FocusChangedSignal 콜백
-  │     1. ActorAccessible::Get(newFocused)
-  │     2. DirectNodeProxy 생성/조회 (proxy cache)
-  │     3. service->highlightNode(proxy) → currentNode 설정
-  │     4. service->dispatchEvent(STATE_CHANGED, "focused", 1)
-  │     5. → TvScreenReaderService::onAccessibilityEvent
-  │        → readNode(getCurrentNode()) → TTS speaks
-  │
-  └── TvScreenReaderService (embedded in-process)
-        ├── DirectAppRegistry (root accessible → NodeProxy)
-        ├── StubGestureProvider (no-op)
-        ├── MacTtsEngine (AVSpeechSynthesizer)
-        └── StubSettingsProvider
+accessibility-test:               56 passed, 0 failed
+accessibility-service-test:       55 passed, 0 failed
+accessibility-screen-reader-test: 120 passed, 0 failed
+dali-adaptor build:               OK (linker-test OK)
 ```
 
-### 생성된 파일 (1)
+## 다음 Phase 후보 (brainstorm)
 
-| File | Description |
-|------|-------------|
-| `tools/screen-reader/screen-reader-tv-demo.cpp` | Main binary — DALi 480×800 창 + 6개 실제 컨트롤 + KeyboardFocusManager + TvScreenReaderService |
+### A. Tizen 디바이스 작업 (디바이스 필요)
 
-### 수정된 파일 (3)
+1. **Phase 2.6 Stage B/C: TIDL backend 실제 구현**
+   - tidlc 생성 코드 → TidlIpcServer dispatch 구현
+   - 5개 Client wrapper (StatusMonitor, KeyEventForwarder, etc.)
+   - rpc-port 기반 end-to-end 테스트
 
-| File | Change |
-|------|--------|
-| `build/tizen/CMakeLists.txt` | `BUILD_SCREEN_READER_TV_DEMO` option 추가 |
-| `CLAUDE.md` | Repository structure, demo 실행 방법, Important Files 추가 |
-| `Handover.md` | Phase 4.6 문서화 |
+2. **Tizen platform scaffolds 채움**
+   - `tizen-tts-engine.cpp`: Tizen TTS API (`tts_create`, `tts_add_text`, `tts_play`)
+   - `tizen-feedback-provider.cpp`: `feedback_play_type()` API
+   - `tizen-settings-provider.cpp`: vconf 기반 설정 읽기
+   - `wm-gesture-provider.cpp`: 윈도우 매니저 gesture 연동
 
-### 핵심 설계 결정
+3. **SystemNotifications**: battery/wifi/BT/display 상태 알림
 
-1. **KeyboardFocusManager 활용**: DALi의 built-in focus manager가 방향키 처리, focus indicator 표시, focus 이동을 자동 수행. `PreFocusChangeSignal`로 navigation order만 정의.
-2. **FocusChangedSignal → dispatchEvent**: Focus 변경 시 `STATE_CHANGED(focused)` 이벤트를 `TvScreenReaderService`에 전달. 서비스의 `onAccessibilityEvent`가 자동으로 `readNode()` 호출.
-3. **OnEnterPressed는 로깅만**: DALi가 Enter 키를 처리할 때 `ClickedSignal`과 `FocusedActorEnterKeySignal` 모두 발생. `OnEnterPressed`에서 수동 상태 변경 시 double-toggle 발생 → 로깅만 수행하고 실제 동작은 `ClickedSignal` 콜백에 위임.
-4. **Proxy cache**: Demo 클래스에서 별도 `weak_ptr` proxy cache 관리. `DirectAppRegistry`와 독립적으로 `OnFocusChanged`에서 proxy 조회.
+### B. Cross-repo refactoring (macOS에서 가능)
 
-### 빌드 및 실행
+4. **Emit* methods 이동**: `ActorAccessible`의 ~20개 `Emit*` 메서드를 accessibility-common의 `Accessible` base class로 이동. DALi 의존성 없는 순수 bridge wrapper이므로 이동 가능. Bridge 코드가 `Accessible*`만으로 signal emit 가능해짐.
 
-```bash
-cd ~/tizen/accessibility-common/build/tizen/build
+5. **Forwarding headers 제거**: dali-toolkit/dali-csharp-binder가 `Dali::Accessibility::` 대신 `::Accessibility::` namespace를 직접 사용하도록 변경. 나머지 forwarding headers (accessible.h, action.h, text.h, value.h 등 12개) 제거 가능. 대규모 변경.
 
-cmake .. -DENABLE_ATSPI=ON -DBUILD_SCREEN_READER_TV_DEMO=ON -DENABLE_PKG_CONFIGURE=OFF
-make -j8
+6. **dali-csharp-binder 업데이트**: C# 바인딩이 accessibility-common API를 직접 사용하도록 변경.
 
-export DYLD_LIBRARY_PATH=$HOME/tizen/dali-env/lib
-./accessibility-screen-reader-tv-demo
-```
+### C. 기능 확장
 
-### 키보드 단축키
+7. **AurumService**: 자동화 테스트용 AccessibilityService 구현. 기존 aurum이 AT-SPI 직접 사용 → AccessibilityService API로 전환.
 
-| Key | Action |
-|-----|--------|
-| Up / Down | Focus 이동 (KeyboardFocusManager 자동 처리) |
-| Left / Right | Focus 이동 (KeyboardFocusManager 자동 처리) |
-| Enter | 활성화 (FocusedActorEnterKeySignal → ClickedSignal) |
-| t | Accessibility tree stdout 출력 |
-| Esc / q | 종료 |
+8. **macOS NSAccessibility backend**: VoiceOver와 네이티브 통합. D-Bus/AT-SPI 대신 macOS accessibility protocol 사용.
 
-### 동작 확인 사항
+9. **Language span parsing**: Multi-language TTS (`<lang>` 태그 파싱, language-aware ReadingComposer).
 
-- DALi 480×800 창에 실제 컨트롤 표시 (title, Play, Stop, Volume, Autoplay, Status)
-- **Up/Down 키**로 focus 이동 → TTS가 "Play, Button" 등 읽어줌 (TV 프로파일: touch hint 미발화)
-- **Enter 키**로 활성화 → 버튼 클릭, 체크박스 토글 (double-toggle 없이 정상 동작)
-- **t** → accessibility tree 출력
-- **Esc/q** → 종료
+10. **WindowOrderingPolicy**: Multi-window navigation ordering (z-order, stacking).
 
-## 테스트 결과 (전체 278 tests)
+### D. 코드 품질
 
-```bash
-# ScreenReaderService 테스트 (기존 120개 모두 통과)
-cmake .. -DENABLE_ATSPI=ON -DBUILD_SCREEN_READER_TESTS=ON -DENABLE_PKG_CONFIGURE=OFF
-make -j8 && ./accessibility-screen-reader-test
-# === Results: 120 passed, 0 failed ===
-```
+11. **dali-toolkit 테스트 빌드 검증**: toolkit automated tests가 accessibility-common과 함께 빌드/통과하는지 확인.
 
-## 다음 Phase
+12. **CI/CD 통합**: accessibility-common을 Tizen OBS에 패키지로 등록, dali-adaptor/toolkit의 BuildRequires 추가.
 
-### Phase 5: Toolkit Integration
-- `dali-adaptor`가 accessibility-common에 의존 (코드 포함 대신)
-- `dali-toolkit`의 `ControlAccessible`이 `Accessible` interface 구현
-- DALi adaptor lifecycle에서 `PlatformCallbacks` 연결
-- Zero behavior change 보장
+## 추천 우선순위
 
-### Tizen 디바이스 필요 작업
-- **Phase 2.6 Stage B/C**: TIDL backend 실제 구현
-- **Tizen scaffolds 채움**: tizen-tts-engine, tizen-feedback-provider, tizen-settings-provider, tizen-screen-reader-switch, wm-gesture-provider
-- **SystemNotifications**: battery/wifi/BT/display status announcements
-- **Language span parsing**: Multi-language TTS
+macOS에서 계속 작업한다면: **4 (Emit* 이동)** → **5 (forwarding headers 제거)** → **11 (toolkit 테스트)**
 
-### Deferred
-- `AurumService` — automated accessibility testing service
-- `WindowOrderingPolicy` — multi-window navigation ordering
-- Key event handling 확장
+Tizen 디바이스 확보 시: **1 (TIDL Stage B/C)** → **2 (platform scaffolds)** → **12 (CI/CD)**

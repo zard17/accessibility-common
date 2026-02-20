@@ -58,7 +58,9 @@ gantt
     Screen Reader Demos         :done, p45, 2026-02, 2026-02
 
     section Phase 5
-    DALi Toolkit Integration    :p5, 2026-06, 2027-01
+    DALi Integration (adaptor)  :done, p5a, 2026-02, 2026-02
+    DALi Integration (toolkit)  :done, p5b, 2026-02, 2026-02
+    Dead code cleanup           :done, p5c, 2026-02, 2026-02
 ```
 
 | Phase | Goal | Status |
@@ -72,7 +74,7 @@ gantt
 | **4** | Concrete services (Inspector + ScreenReader) | **DONE** (47 inspector + 120 screen reader tests) |
 | **4.5** | Screen Reader Demo (gesture-based, real DALi app) | **DONE** |
 | **4.6** | TV Screen Reader Demo (focus-based, KeyboardFocusManager) | **DONE** |
-| **5** | DALi toolkit integration | TODO |
+| **5** | DALi integration (adaptor + toolkit + demo + cleanup) | **DONE** |
 
 ---
 
@@ -671,16 +673,49 @@ D-Bus/AT-SPI가 아닌 macOS native accessibility protocol을 사용하므로, I
 
 ---
 
-## 10. Phase 5: Toolkit Integration (Planned)
+## 10. Phase 5: DALi Integration (DONE)
 
-accessibility-common을 DALi의 dependency로 다시 통합. 현재 dali-adaptor 내의 accessibility 코드를 대체.
+accessibility-common을 DALi의 dependency로 통합 완료. dali-adaptor 내의 bridge/dbus 코드 15,700줄 삭제, accessibility-common 라이브러리로 대체.
 
-| Goal | Description |
-|------|-------------|
-| dali-adaptor dependency | `dali-adaptor`가 accessibility-common에 의존 (코드 포함 대신) |
-| ControlAccessible | `dali-toolkit`의 `ControlAccessible`이 `Accessible` interface 구현 |
-| Platform callbacks | DALi adaptor lifecycle에서 `PlatformCallbacks` 연결 |
-| Zero behavior change | 기존 accessibility consumer 동작 변경 없음 |
+### 5a: dali-adaptor (3 commits)
+
+| Commit | Description |
+|--------|-------------|
+| `63a50ab` | Phase 5b: dali-adaptor → accessibility-common 링크. bridge/dbus 코드 삭제 (15,700줄-), CMake/spec 업데이트, `PlatformCallbacks` 연결 |
+| `31cdc25` | `Register/UnregisterDefaultLabel` Actor convenience functions 추가 |
+| `8cf2f87` | Dead code cleanup: consumer 0인 forwarding headers 삭제, empty stubs 삭제, bitset.h inline, spec 정리 |
+
+### 5b: dali-toolkit (3 commits)
+
+| Commit | Description |
+|--------|-------------|
+| `0c38079` | `Accessible::Get(Actor)` → `ActorAccessible::Get(Actor)` static method 사용 |
+| `d8f0e85` | accessibility-common API 변경에 맞춰 테스트 코드 수정 |
+| `9f949f2` | DefaultLabel / IsAccessibleCreated에서 불필요한 Accessible 생성 방지 |
+
+### 5c: dali-demo (3 commits)
+
+| Commit | Description |
+|--------|-------------|
+| `c8044f2` | `Accessibility::` namespace 명시적 한정 (ambiguity 해결) |
+| `8abe851` | Accessibility inspector demo app (라이브 웹 인스펙터) |
+| `343e31c` | Inspector에 highlight dispatch 추가 |
+
+### 변경 규모
+
+| Repo | Files changed | Insertions | Deletions |
+|------|--------------|------------|-----------|
+| dali-adaptor | 76 | 935 | 15,722 |
+| dali-toolkit | 18 | 199 | 172 |
+| dali-demo | 3+ | — | — |
+
+### Branches
+
+| Repo | Branch |
+|------|--------|
+| dali-adaptor | `youngsus/250220-cleanup-dead-accessibility-code` |
+| dali-toolkit | `youngsus/250220-phase5-accessibility-common` |
+| dali-demo | `youngsus/250220-phase5-accessibility-common` |
 
 ---
 
@@ -898,7 +933,7 @@ graph TB
 | 3 | + `accessibility-service-test` | 55 passed |
 | 4 | + `accessibility-inspector-service-test` + `accessibility-screen-reader-test` | 47 + 120 passed |
 | 4.5/4.6 | Screen reader demos vs real DALi controls | End-to-end TTS on macOS |
-| 5 | Full stack rebuild + existing AT-SPI consumers | Zero behavior change |
+| 5 | Full stack rebuild (adaptor + toolkit + demo) | dali-adaptor build OK, 231 tests passed (56+55+120) |
 
 Test coverage 상세 및 build 방법은 [mock-and-test.md](mock-and-test.md) 참조.
 
