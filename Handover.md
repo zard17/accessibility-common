@@ -1,95 +1,101 @@
-# Handover: Phase 5 Complete + Dead Code Cleanup
-
-## 완료된 Phase 상태
-
-| Phase | Status |
-|-------|--------|
-| 1 (DALi 분리) | **DONE** |
-| 2 (IPC 추상화) | **DONE** |
-| 2.5 (GDBus) | **DONE** |
-| 2.6 (TIDL) | **Stage A DONE** (Stage B/C는 Tizen 디바이스 필요) |
-| 2.7 (Tree embedding) | **DONE** |
-| 3 (AccessibilityService) | **DONE** — 55 service tests |
-| 4 (Concrete Services) | **DONE** — 47 inspector + 120 screen reader tests |
-| 4.5 (Screen Reader Demo) | **DONE** |
-| 4.6 (TV Screen Reader Demo) | **DONE** |
-| **5 (DALi Integration)** | **DONE** — adaptor + toolkit + demo + dead code cleanup |
+# Handover: EspeakTtsEngine + Ubuntu DALi Build
 
 ## 이번 세션에서 한 일
 
-### 1. dali-adaptor: Dead code cleanup (commit `8cf2f87`)
+### 1. EspeakTtsEngine 구현 (Ubuntu/Linux TTS backend)
 
-Phase 5 이후 남은 잔여 코드 정리:
+Screen reader demos가 macOS의 `MacTtsEngine`만 지원하던 것을 Ubuntu/Linux에서도 동작하도록 `EspeakTtsEngine` 추가.
 
-- **8 파일 삭제**: consumer 0인 forwarding headers 4개 (`application.h`, `component.h`, `socket.h`, `accessibility-feature.h`), 빈 `.cpp` 2개, `accessibility-bitset.h` (accessibility.h에 inline), `build.log` (2.8MB artifact)
-- **4 파일 수정**: `accessibility.h` (bitset inline), `file.list` (6 entries 제거), `dali-adaptor.spec` (stale `-DENABLE_ACCESSIBILITY=ON` 제거, eldbus 주석 수정), `.gitignore` (`build.log` 추가)
-- 빌드 성공, 231 tests passed (56+55+120)
+**새 파일:**
+- `tools/screen-reader/espeak-tts-engine.h` — `Accessibility::TtsEngine` 구현
+- `tools/screen-reader/espeak-tts-engine.cpp` — `espeak-ng/speak_lib.h` 사용 (`AUDIO_OUTPUT_PLAYBACK` 모드, pause/resume 미지원)
 
-### 2. Branches pushed
+**수정 파일:**
+- `build/tizen/CMakeLists.txt` — `IF(APPLE) ... ELSE()` 블록 추가, espeak-ng 소스/링크 설정
+- `tools/screen-reader/screen-reader-demo.cpp` — `#ifdef __APPLE__` 분기로 `PlatformTtsEngine` typedef
+- `tools/screen-reader/screen-reader-tv-demo.cpp` — 동일한 platform-conditional 처리
 
-| Repo | Branch | Commits |
-|------|--------|---------|
-| dali-adaptor | `youngsus/250220-cleanup-dead-accessibility-code` | 3 (Phase 5b + DefaultLabel + cleanup) |
-| dali-toolkit | `youngsus/250220-phase5-accessibility-common` | 3 (ActorAccessible migration + API adapt + DefaultLabel fix) |
-| dali-demo | `youngsus/250220-phase5-accessibility-common` | 3 (namespace qualify + inspector demo + highlight dispatch) |
+### 2. ProgressBar 제거 대응
 
-### 3. 문서 업데이트
+dali-toolkit upstream에서 `ProgressBar` 클래스가 제거됨. 양쪽 demo에서 `ProgressBar`를 `TextLabel` ("Volume: 50%")로 교체. Up/Down 키로 값 조절 기능 유지.
 
-- `docs/architecture-overview.md`: Phase 5 status DONE, Gantt chart 업데이트, Phase 10 섹션 완료 내용으로 교체, Verification 테이블 업데이트
-- `Handover.md`: 이번 세션 내용으로 교체
+### 3. CheckBox 활성화 버그 수정 (Linux)
 
-## 테스트 결과
+`screen-reader-demo.cpp`에서 Enter 키 누르면 `ActivateCurrentNode()` + `ONE_FINGER_DOUBLE_TAP` gesture가 동시에 발생하여 checkbox가 double-toggle (net zero change) 되는 버그.
 
+- **원인**: macOS에서는 `DoAction("activate")`가 `ClickedSignal`을 발생시키지 않아 manual toggle이 필요했으나, Linux에서는 `DoAction`이 정상 동작하여 이중 토글 발생
+- **수정**: `ActivateCurrentNode()` 호출을 `#ifdef __APPLE__`로 가드
+
+### 4. Ubuntu DALi 스택 빌드 성공
+
+| Component | Profile/Option | Install Prefix |
+|-----------|---------------|----------------|
+| dali-core | default | `~/tizen/dali-env` |
+| accessibility-common | `ENABLE_ACCESSIBILITY=ON` | `~/tizen/dali-env` |
+| dali-adaptor | `GLIB_X11` (EFL 불필요) | `~/tizen/dali-env` |
+| dali-toolkit | default | `~/tizen/dali-env` |
+
+**참고:** Ubuntu에서는 `UBUNTU` profile 대신 `GLIB_X11` profile 사용 (UBUNTU profile은 EFL/Ecore 필요).
+
+### 5. dali-toolkit rebase 충돌 해결
+
+`youngsus/250220-phase5-accessibility-common` 브랜치를 `devel/master`로 rebase 시 충돌 해결:
+- `utc-Dali-Accessibility-Controls.cpp` — `ToolBar`, `Alignment` 테스트 함수 유지 (upstream에서 삭제된 것을 `ActorAccessible::Get` API로 추가한 커밋)
+- `utc-Dali-Accessibility-Value.cpp` — `ProgressBar` Value 테스트 함수 유지
+
+## Ubuntu 빌드 필요 패키지
+
+```bash
+sudo apt-get install -y cmake g++ pkg-config libssl-dev libespeak-ng-dev \
+  libfreetype-dev libfontconfig-dev libharfbuzz-dev libpng-dev \
+  libcurl4-openssl-dev libfribidi-dev libcairo2-dev libgif-dev \
+  libturbojpeg0-dev libjpeg-dev libhyphen-dev libexif-dev \
+  libdrm-dev libwebp-dev libx11-dev libxdamage-dev libxfixes-dev \
+  libxi-dev libxrender-dev libgles-dev libegl-dev libx11-xcb-dev \
+  libxrandr-dev libxcursor-dev libxcomposite-dev libxtst-dev
 ```
-accessibility-test:               56 passed, 0 failed
-accessibility-service-test:       55 passed, 0 failed
-accessibility-screen-reader-test: 120 passed, 0 failed
-dali-adaptor build:               OK (linker-test OK)
+
+## Ubuntu 빌드 명령 (순서대로)
+
+```bash
+export DESKTOP_PREFIX=$HOME/tizen/dali-env
+export PKG_CONFIG_PATH=$DESKTOP_PREFIX/lib/pkgconfig:$PKG_CONFIG_PATH
+
+# dali-core
+cd ~/tizen/dali-core/build/tizen
+cmake -DCMAKE_INSTALL_PREFIX=$DESKTOP_PREFIX -DINSTALL_CMAKE_MODULES=ON . && make install -j$(nproc)
+
+# accessibility-common
+cd ~/tizen/accessibility-common/build/tizen && mkdir -p build && cd build
+cmake .. -DCMAKE_INSTALL_PREFIX=$DESKTOP_PREFIX -DENABLE_ACCESSIBILITY=ON \
+  -DINCLUDE_DIR=$DESKTOP_PREFIX/include -DLIB_DIR=$DESKTOP_PREFIX/lib && make install -j$(nproc)
+# symlink for pkg-config (adaptor expects dali2-accessibility-common)
+ln -sf accessibility-common.pc $DESKTOP_PREFIX/lib/pkgconfig/dali2-accessibility-common.pc
+
+# dali-adaptor (GLIB_X11 profile, no EFL needed)
+cd ~/tizen/dali-adaptor/build/tizen
+cmake -DCMAKE_INSTALL_PREFIX=$DESKTOP_PREFIX -DINSTALL_CMAKE_MODULES=ON \
+  -DENABLE_PROFILE=GLIB_X11 -DPROFILE_LCASE=glib-x11 -DENABLE_LINK_TEST=OFF . && make install -j$(nproc)
+
+# dali-toolkit
+cd ~/tizen/dali-toolkit/build/tizen
+cmake -DCMAKE_INSTALL_PREFIX=$DESKTOP_PREFIX -DINSTALL_CMAKE_MODULES=ON \
+  -DENABLE_LINK_TEST=OFF . && make install -j$(nproc)
+
+# Screen reader demos
+cd ~/tizen/accessibility-common/build/tizen/build
+cmake .. -DCMAKE_INSTALL_PREFIX=$DESKTOP_PREFIX -DENABLE_ACCESSIBILITY=ON \
+  -DINCLUDE_DIR=$DESKTOP_PREFIX/include -DLIB_DIR=$DESKTOP_PREFIX/lib \
+  -DBUILD_SCREEN_READER_DEMO=ON -DBUILD_SCREEN_READER_TV_DEMO=ON && make -j$(nproc)
+
+# Run
+export LD_LIBRARY_PATH=$DESKTOP_PREFIX/lib
+./accessibility-screen-reader-demo
+./accessibility-screen-reader-tv-demo
 ```
 
-## 다음 Phase 후보 (brainstorm)
+## 다음 세션 TODO
 
-### A. Tizen 디바이스 작업 (디바이스 필요)
-
-1. **Phase 2.6 Stage B/C: TIDL backend 실제 구현**
-   - tidlc 생성 코드 → TidlIpcServer dispatch 구현
-   - 5개 Client wrapper (StatusMonitor, KeyEventForwarder, etc.)
-   - rpc-port 기반 end-to-end 테스트
-
-2. **Tizen platform scaffolds 채움**
-   - `tizen-tts-engine.cpp`: Tizen TTS API (`tts_create`, `tts_add_text`, `tts_play`)
-   - `tizen-feedback-provider.cpp`: `feedback_play_type()` API
-   - `tizen-settings-provider.cpp`: vconf 기반 설정 읽기
-   - `wm-gesture-provider.cpp`: 윈도우 매니저 gesture 연동
-
-3. **SystemNotifications**: battery/wifi/BT/display 상태 알림
-
-### B. Cross-repo refactoring (macOS에서 가능)
-
-4. **Emit* methods 이동**: `ActorAccessible`의 ~20개 `Emit*` 메서드를 accessibility-common의 `Accessible` base class로 이동. DALi 의존성 없는 순수 bridge wrapper이므로 이동 가능. Bridge 코드가 `Accessible*`만으로 signal emit 가능해짐.
-
-5. **Forwarding headers 제거**: dali-toolkit/dali-csharp-binder가 `Dali::Accessibility::` 대신 `::Accessibility::` namespace를 직접 사용하도록 변경. 나머지 forwarding headers (accessible.h, action.h, text.h, value.h 등 12개) 제거 가능. 대규모 변경.
-
-6. **dali-csharp-binder 업데이트**: C# 바인딩이 accessibility-common API를 직접 사용하도록 변경.
-
-### C. 기능 확장
-
-7. **AurumService**: 자동화 테스트용 AccessibilityService 구현. 기존 aurum이 AT-SPI 직접 사용 → AccessibilityService API로 전환.
-
-8. **macOS NSAccessibility backend**: VoiceOver와 네이티브 통합. D-Bus/AT-SPI 대신 macOS accessibility protocol 사용.
-
-9. **Language span parsing**: Multi-language TTS (`<lang>` 태그 파싱, language-aware ReadingComposer).
-
-10. **WindowOrderingPolicy**: Multi-window navigation ordering (z-order, stacking).
-
-### D. 코드 품질
-
-11. **dali-toolkit 테스트 빌드 검증**: toolkit automated tests가 accessibility-common과 함께 빌드/통과하는지 확인.
-
-12. **CI/CD 통합**: accessibility-common을 Tizen OBS에 패키지로 등록, dali-adaptor/toolkit의 BuildRequires 추가.
-
-## 추천 우선순위
-
-macOS에서 계속 작업한다면: **4 (Emit* 이동)** → **5 (forwarding headers 제거)** → **11 (toolkit 테스트)**
-
-Tizen 디바이스 확보 시: **1 (TIDL Stage B/C)** → **2 (platform scaffolds)** → **12 (CI/CD)**
+- dali-adaptor의 `deps-check.cmake`에서 `dali2-accessibility-common` 대신 `accessibility-common`으로 참조하도록 변경 (pkg-config 이름 통일)
+- macOS에서 `DoAction("activate")`가 `ClickedSignal`을 발생시키지 않는 근본 원인 조사
+- Ubuntu setup guide (`docs/ubuntu-setup.md`) 업데이트: 실제 빌드 경험 반영

@@ -533,6 +533,11 @@ IF( BUILD_SCREEN_READER_DEMO )
     TARGET_LINK_LIBRARIES( accessibility-screen-reader-demo
       "-framework AVFoundation" "-framework Foundation" objc
     )
+  ELSE()
+    TARGET_SOURCES( accessibility-screen-reader-demo PRIVATE
+      ${accessibility_common_root}/tools/screen-reader/espeak-tts-engine.cpp
+    )
+    TARGET_LINK_LIBRARIES( accessibility-screen-reader-demo espeak-ng )
   ENDIF()
 
   MESSAGE( STATUS "Screen Reader Demo: DALi core=${DALI_CORE_LIB}" )
@@ -580,6 +585,11 @@ IF( BUILD_SCREEN_READER_TV_DEMO )
     TARGET_LINK_LIBRARIES( accessibility-screen-reader-tv-demo
       "-framework AVFoundation" "-framework Foundation" objc
     )
+  ELSE()
+    TARGET_SOURCES( accessibility-screen-reader-tv-demo PRIVATE
+      ${accessibility_common_root}/tools/screen-reader/espeak-tts-engine.cpp
+    )
+    TARGET_LINK_LIBRARIES( accessibility-screen-reader-tv-demo espeak-ng )
   ENDIF()
 
   MESSAGE( STATUS "TV Screen Reader Demo: DALi core=${DALI_CORE_LIB}" )

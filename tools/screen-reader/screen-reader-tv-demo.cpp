@@ -22,7 +22,6 @@
 
 #include <dali-toolkit/dali-toolkit.h>
 #include <dali-toolkit/public-api/controls/buttons/check-box-button.h>
-#include <dali-toolkit/public-api/controls/progress-bar/progress-bar.h>
 #include <dali/devel-api/adaptor-framework/actor-accessible.h>
 
 // INTERNAL INCLUDES
@@ -30,7 +29,13 @@
 #include <accessibility/internal/service/screen-reader/stub/stub-settings-provider.h>
 #include <accessibility/internal/service/stub/stub-gesture-provider.h>
 #include <tools/screen-reader/direct-app-registry.h>
+#ifdef __APPLE__
 #include <tools/screen-reader/mac-tts-engine.h>
+using PlatformTtsEngine = MacTtsEngine;
+#else
+#include <tools/screen-reader/espeak-tts-engine.h>
+using PlatformTtsEngine = EspeakTtsEngine;
+#endif
 
 using namespace Dali;
 using namespace Dali::Toolkit;
@@ -127,16 +132,17 @@ public:
     mStopBtn.SetProperty(Actor::Property::KEYBOARD_FOCUSABLE, true);
     window.Add(mStopBtn);
 
-    // Volume progress bar
-    mVolumeBar = ProgressBar::New();
-    mVolumeBar.SetProperty(Actor::Property::NAME, "Volume");
-    mVolumeBar.SetProperty(Actor::Property::ANCHOR_POINT, AnchorPoint::TOP_CENTER);
-    mVolumeBar.SetProperty(Actor::Property::PARENT_ORIGIN, ParentOrigin::TOP_CENTER);
-    mVolumeBar.SetProperty(Actor::Property::POSITION, Vector2(0.0f, 300.0f));
-    mVolumeBar.SetProperty(Actor::Property::SIZE, Vector2(windowSize.width * 0.7f, 50.0f));
-    mVolumeBar.SetProperty(ProgressBar::Property::PROGRESS_VALUE, 0.5f);
-    mVolumeBar.SetProperty(Actor::Property::KEYBOARD_FOCUSABLE, true);
-    window.Add(mVolumeBar);
+    // Volume label (replaces ProgressBar which was removed from DALi)
+    mVolumeLabel = TextLabel::New("Volume: 50%");
+    mVolumeLabel.SetProperty(Actor::Property::NAME, "Volume");
+    mVolumeLabel.SetProperty(Actor::Property::ANCHOR_POINT, AnchorPoint::TOP_CENTER);
+    mVolumeLabel.SetProperty(Actor::Property::PARENT_ORIGIN, ParentOrigin::TOP_CENTER);
+    mVolumeLabel.SetProperty(Actor::Property::POSITION, Vector2(0.0f, 300.0f));
+    mVolumeLabel.SetProperty(Actor::Property::SIZE, Vector2(windowSize.width * 0.7f, 50.0f));
+    mVolumeLabel.SetProperty(TextLabel::Property::HORIZONTAL_ALIGNMENT, "CENTER");
+    mVolumeLabel.SetProperty(TextLabel::Property::POINT_SIZE, 12.0f);
+    mVolumeLabel.SetProperty(Actor::Property::KEYBOARD_FOCUSABLE, true);
+    window.Add(mVolumeLabel);
 
     // Autoplay checkbox
     mAutoplayCheck = CheckBoxButton::New();
@@ -168,7 +174,7 @@ public:
 
     // --- Build focus order ---
 
-    mFocusOrder = {mTitle, mPlayBtn, mStopBtn, mVolumeBar, mAutoplayCheck, mStatusLabel};
+    mFocusOrder = {mTitle, mPlayBtn, mStopBtn, mVolumeLabel, mAutoplayCheck, mStatusLabel};
 
     // --- KeyboardFocusManager setup ---
 
@@ -204,7 +210,7 @@ public:
 
     auto registry = std::make_unique<DirectAppRegistry>(rootAccessible);
     auto gesture  = std::make_unique<::Accessibility::StubGestureProvider>();
-    auto tts      = std::make_unique<MacTtsEngine>();
+    auto tts      = std::make_unique<PlatformTtsEngine>();
     auto settings = std::make_unique<::Accessibility::StubSettingsProvider>();
 
     // Keep a reference to the registry for proxy creation
@@ -409,7 +415,7 @@ private:
   ::Accessibility::Accessible*                               mRootAccessible{nullptr};
   TextLabel                                                  mTitle;
   TextLabel                                                  mStatusLabel;
-  ProgressBar                                                mVolumeBar;
+  TextLabel                                                  mVolumeLabel;
   PushButton                                                 mPlayBtn;
   PushButton                                                 mStopBtn;
   CheckBoxButton                                             mAutoplayCheck;

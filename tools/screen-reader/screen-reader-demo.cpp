@@ -23,7 +23,6 @@
 
 #include <dali-toolkit/dali-toolkit.h>
 #include <dali-toolkit/public-api/controls/buttons/check-box-button.h>
-#include <dali-toolkit/public-api/controls/progress-bar/progress-bar.h>
 #include <dali/devel-api/adaptor-framework/actor-accessible.h>
 
 // INTERNAL INCLUDES
@@ -33,7 +32,13 @@
 #include <accessibility/internal/service/screen-reader/stub/stub-screen-reader-switch.h>
 #include <accessibility/internal/service/screen-reader/stub/stub-settings-provider.h>
 #include <tools/screen-reader/direct-app-registry.h>
+#ifdef __APPLE__
 #include <tools/screen-reader/mac-tts-engine.h>
+using PlatformTtsEngine = MacTtsEngine;
+#else
+#include <tools/screen-reader/espeak-tts-engine.h>
+using PlatformTtsEngine = EspeakTtsEngine;
+#endif
 
 using namespace Dali;
 using namespace Dali::Toolkit;
@@ -153,16 +158,17 @@ public:
     mStopBtn.SetProperty(Actor::Property::KEYBOARD_FOCUSABLE, true);
     window.Add(mStopBtn);
 
-    // Volume progress bar
-    mVolumeBar = ProgressBar::New();
-    mVolumeBar.SetProperty(Actor::Property::NAME, "Volume");
-    mVolumeBar.SetProperty(Actor::Property::ANCHOR_POINT, AnchorPoint::TOP_CENTER);
-    mVolumeBar.SetProperty(Actor::Property::PARENT_ORIGIN, ParentOrigin::TOP_CENTER);
-    mVolumeBar.SetProperty(Actor::Property::POSITION, Vector2(0.0f, 300.0f));
-    mVolumeBar.SetProperty(Actor::Property::SIZE, Vector2(windowSize.width * 0.7f, 50.0f));
-    mVolumeBar.SetProperty(ProgressBar::Property::PROGRESS_VALUE, 0.5f);
-    mVolumeBar.SetProperty(Actor::Property::KEYBOARD_FOCUSABLE, true);
-    window.Add(mVolumeBar);
+    // Volume label (replaces ProgressBar which was removed from DALi)
+    mVolumeLabel = TextLabel::New("Volume: 50%");
+    mVolumeLabel.SetProperty(Actor::Property::NAME, "Volume");
+    mVolumeLabel.SetProperty(Actor::Property::ANCHOR_POINT, AnchorPoint::TOP_CENTER);
+    mVolumeLabel.SetProperty(Actor::Property::PARENT_ORIGIN, ParentOrigin::TOP_CENTER);
+    mVolumeLabel.SetProperty(Actor::Property::POSITION, Vector2(0.0f, 300.0f));
+    mVolumeLabel.SetProperty(Actor::Property::SIZE, Vector2(windowSize.width * 0.7f, 50.0f));
+    mVolumeLabel.SetProperty(TextLabel::Property::HORIZONTAL_ALIGNMENT, "CENTER");
+    mVolumeLabel.SetProperty(TextLabel::Property::POINT_SIZE, 12.0f);
+    mVolumeLabel.SetProperty(Actor::Property::KEYBOARD_FOCUSABLE, true);
+    window.Add(mVolumeLabel);
 
     // Autoplay checkbox
     mAutoplayCheck = CheckBoxButton::New();
@@ -212,7 +218,7 @@ public:
 
     auto registry   = std::make_unique<DirectAppRegistry>(rootAccessible);
     auto gesture    = std::make_unique<KeyboardGestureProvider>();
-    auto tts        = std::make_unique<MacTtsEngine>();
+    auto tts        = std::make_unique<PlatformTtsEngine>();
     auto feedback   = std::make_unique<::Accessibility::StubFeedbackProvider>();
     auto settings   = std::make_unique<::Accessibility::StubSettingsProvider>();
     auto srSwitch   = std::make_unique<::Accessibility::StubScreenReaderSwitch>();
@@ -317,18 +323,17 @@ private:
     // Volume Up/Down
     if(keyName == "Up" || keyName == "Down")
     {
-      float value = mVolumeBar.GetProperty<float>(ProgressBar::Property::PROGRESS_VALUE);
       if(keyName == "Up")
       {
-        value = std::min(1.0f, value + 0.1f);
+        mVolumeValue = std::min(1.0f, mVolumeValue + 0.1f);
       }
       else
       {
-        value = std::max(0.0f, value - 0.1f);
+        mVolumeValue = std::max(0.0f, mVolumeValue - 0.1f);
       }
-      mVolumeBar.SetProperty(ProgressBar::Property::PROGRESS_VALUE, value);
       char buf[64];
-      snprintf(buf, sizeof(buf), "Volume: %d%%", static_cast<int>(value * 100.0f));
+      snprintf(buf, sizeof(buf), "Volume: %d%%", static_cast<int>(mVolumeValue * 100.0f));
+      mVolumeLabel.SetProperty(TextLabel::Property::TEXT, std::string(buf));
       mStatusLabel.SetProperty(TextLabel::Property::TEXT, std::string(buf));
       fprintf(stdout, "[Action] %s\n", buf);
       return;
@@ -360,9 +365,10 @@ private:
     else if(keyName == "Return" || keyName == "d")
     {
       gi.type = ::Accessibility::Gesture::ONE_FINGER_DOUBLE_TAP;
-      // Also perform direct activation since DALi DoAction may not
-      // trigger ClickedSignal on macOS
+#ifdef __APPLE__
+      // macOS DoAction doesn't reliably fire ClickedSignal
       ActivateCurrentNode();
+#endif
     }
     else if(keyName == "space" || keyName == "p")
     {
@@ -385,7 +391,8 @@ private:
   KeyboardGestureProvider*                          mGestureProvider{nullptr};
   ::Accessibility::Accessible*                      mRootAccessible{nullptr};
   TextLabel                                         mStatusLabel;
-  ProgressBar                                       mVolumeBar;
+  TextLabel                                         mVolumeLabel;
+  float                                             mVolumeValue{0.5f};
   PushButton                                        mPlayBtn;
   PushButton                                        mStopBtn;
   CheckBoxButton                                    mAutoplayCheck;
