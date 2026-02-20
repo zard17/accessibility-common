@@ -30,9 +30,9 @@ accessibility-common/
 cd build/tizen && mkdir -p build && cd build
 
 # macOS (stub D-Bus)
-cmake .. -DENABLE_ATSPI=ON -DENABLE_PKG_CONFIGURE=OFF
+cmake .. -DENABLE_ACCESSIBILITY=ON -DENABLE_PKG_CONFIGURE=OFF
 # Ubuntu (with GDBus)
-cmake .. -DENABLE_ATSPI=ON
+cmake .. -DENABLE_ACCESSIBILITY=ON
 
 make -j$(nproc)
 ```

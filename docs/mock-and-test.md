@@ -45,12 +45,12 @@ The mock pre-populates responses for external AT-SPI services called during brid
 
 ## Build System
 
-The CMake build supports three configurations controlled by `ENABLE_ATSPI` and `eldbus_available`:
+The CMake build supports three configurations controlled by `ENABLE_ACCESSIBILITY` and `eldbus_available`:
 
 ```
-ENABLE_ATSPI=ON + eldbus:    Full bridge + dbus-tizen.cpp (production)
-ENABLE_ATSPI=ON + no eldbus: Full bridge + dbus-stub.cpp  (test/CI)
-ENABLE_ATSPI=OFF:            DummyBridge only              (no a11y)
+ENABLE_ACCESSIBILITY=ON + eldbus:    Full bridge + dbus-tizen.cpp (production)
+ENABLE_ACCESSIBILITY=ON + no eldbus: Full bridge + dbus-stub.cpp  (test/CI)
+ENABLE_ACCESSIBILITY=OFF:            DummyBridge only              (no a11y)
 ```
 
 ### dbus-stub.cpp
@@ -62,7 +62,7 @@ Provides the same portable symbols as `dbus-tizen.cpp` (static variables, `DBusC
 `BUILD_TESTS=ON` adds the `accessibility-test` executable. The test compiles all bridge sources directly rather than linking against the shared library, because the library uses `-fvisibility=hidden` which hides internal symbols (`DBusWrapper`, `DBusClient`, etc.) that the test needs to access.
 
 ```
-cmake .. -DENABLE_ATSPI=ON -DBUILD_TESTS=ON -DENABLE_PKG_CONFIGURE=OFF
+cmake .. -DENABLE_ACCESSIBILITY=ON -DBUILD_TESTS=ON -DENABLE_PKG_CONFIGURE=OFF
 make
 ./accessibility-test
 ```
@@ -73,11 +73,11 @@ Both inspectors compile bridge sources directly (like tests) and use MockDBusWra
 
 ```
 # CLI inspector
-cmake .. -DENABLE_ATSPI=ON -DBUILD_INSPECTOR=ON -DENABLE_PKG_CONFIGURE=OFF
+cmake .. -DENABLE_ACCESSIBILITY=ON -DBUILD_INSPECTOR=ON -DENABLE_PKG_CONFIGURE=OFF
 make && ./accessibility-inspector
 
 # Web inspector
-cmake .. -DENABLE_ATSPI=ON -DBUILD_WEB_INSPECTOR=ON -DENABLE_PKG_CONFIGURE=OFF
+cmake .. -DENABLE_ACCESSIBILITY=ON -DBUILD_WEB_INSPECTOR=ON -DENABLE_PKG_CONFIGURE=OFF
 make && ./accessibility-web-inspector
 ```
 

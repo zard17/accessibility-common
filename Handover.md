@@ -22,7 +22,7 @@
 Phase 5 이후 남은 잔여 코드 정리:
 
 - **8 파일 삭제**: consumer 0인 forwarding headers 4개 (`application.h`, `component.h`, `socket.h`, `accessibility-feature.h`), 빈 `.cpp` 2개, `accessibility-bitset.h` (accessibility.h에 inline), `build.log` (2.8MB artifact)
-- **4 파일 수정**: `accessibility.h` (bitset inline), `file.list` (6 entries 제거), `dali-adaptor.spec` (stale `-DENABLE_ATSPI=ON` 제거, eldbus 주석 수정), `.gitignore` (`build.log` 추가)
+- **4 파일 수정**: `accessibility.h` (bitset inline), `file.list` (6 entries 제거), `dali-adaptor.spec` (stale `-DENABLE_ACCESSIBILITY=ON` 제거, eldbus 주석 수정), `.gitignore` (`build.log` 추가)
 - 빌드 성공, 231 tests passed (56+55+120)
 
 ### 2. Branches pushed

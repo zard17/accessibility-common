@@ -633,7 +633,7 @@ quadrantChart
 
 ```bash
 cd ~/tizen/accessibility-common/build/tizen/build
-cmake .. -DENABLE_ATSPI=ON -DBUILD_TESTS=ON -DENABLE_PKG_CONFIGURE=OFF
+cmake .. -DENABLE_ACCESSIBILITY=ON -DBUILD_TESTS=ON -DENABLE_PKG_CONFIGURE=OFF
 make -j8 && ./accessibility-test
 # Result: 31 passed, 0 failed
 ```

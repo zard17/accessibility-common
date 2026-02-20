@@ -36,10 +36,10 @@ For detailed file descriptions, see [docs/important-files.md](docs/important-fil
 cd build/tizen && mkdir -p build && cd build
 
 # Full build (Tizen with eldbus)
-cmake .. -DENABLE_ATSPI=ON
+cmake .. -DENABLE_ACCESSIBILITY=ON
 
 # Stub build (macOS/CI without eldbus)
-cmake .. -DENABLE_ATSPI=ON -DENABLE_PKG_CONFIGURE=OFF
+cmake .. -DENABLE_ACCESSIBILITY=ON -DENABLE_PKG_CONFIGURE=OFF
 
 make -j$(nproc)
 ```
@@ -66,7 +66,7 @@ Keyboard keys simulate touch gestures. Right/Left = navigate, Enter = activate, 
 DALi `KeyboardFocusManager` handles arrow-key navigation. `FocusChangedSignal` dispatches `STATE_CHANGED(focused)` to `TvScreenReaderService` for TTS. No gesture simulation needed.
 
 ```bash
-cmake .. -DENABLE_ATSPI=ON -DBUILD_SCREEN_READER_TV_DEMO=ON -DENABLE_PKG_CONFIGURE=OFF
+cmake .. -DENABLE_ACCESSIBILITY=ON -DBUILD_SCREEN_READER_TV_DEMO=ON -DENABLE_PKG_CONFIGURE=OFF
 make -j$(nproc)
 export DYLD_LIBRARY_PATH=$HOME/tizen/dali-env/lib
 ./accessibility-screen-reader-tv-demo

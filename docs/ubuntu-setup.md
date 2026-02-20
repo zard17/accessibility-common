@@ -30,7 +30,7 @@ mkdir -p build && cd build
 
 # Tests + demos
 cmake .. \
-  -DENABLE_ATSPI=ON \
+  -DENABLE_ACCESSIBILITY=ON \
   -DBUILD_TESTS=ON \
   -DBUILD_SERVICE_TESTS=ON \
   -DBUILD_SCREEN_READER_TESTS=ON \

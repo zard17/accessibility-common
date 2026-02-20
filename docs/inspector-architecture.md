@@ -125,7 +125,7 @@ A mutex protects the engine from concurrent HTTP request handlers. JSON is seria
 Uses `DirectQueryEngine` to query `Accessible*` objects directly via their C++ interface — no D-Bus, no MockDBusWrapper. Works on any platform.
 
 ```bash
-cmake .. -DENABLE_ATSPI=ON -DBUILD_WEB_INSPECTOR_DIRECT=ON -DENABLE_PKG_CONFIGURE=OFF
+cmake .. -DENABLE_ACCESSIBILITY=ON -DBUILD_WEB_INSPECTOR_DIRECT=ON -DENABLE_PKG_CONFIGURE=OFF
 make -j$(nproc)
 ./accessibility-web-inspector-direct
 ```
@@ -140,7 +140,7 @@ Queries the accessibility tree through **real D-Bus IPC** — a private `dbus-da
 
 ```bash
 # Requires dbus-daemon + gio-2.0
-cmake .. -DENABLE_ATSPI=ON -DBUILD_WEB_INSPECTOR_GDBUS=ON -DENABLE_PKG_CONFIGURE=ON
+cmake .. -DENABLE_ACCESSIBILITY=ON -DBUILD_WEB_INSPECTOR_GDBUS=ON -DENABLE_PKG_CONFIGURE=ON
 make -j$(nproc)
 ./accessibility-web-inspector-gdbus [port]
 ```
@@ -154,7 +154,7 @@ Same web UI. The difference is under the hood: every API call traverses real D-B
 A static library (`libaccessibility-inspector.a`) that can be linked into any DALi app to add a web inspector endpoint.
 
 ```bash
-cmake .. -DENABLE_ATSPI=ON -DBUILD_INSPECTOR_LIB=ON -DENABLE_PKG_CONFIGURE=OFF \
+cmake .. -DENABLE_ACCESSIBILITY=ON -DBUILD_INSPECTOR_LIB=ON -DENABLE_PKG_CONFIGURE=OFF \
   -DCMAKE_INSTALL_PREFIX=$DESKTOP_PREFIX -DLIB_DIR=$DESKTOP_PREFIX/lib -DINCLUDE_DIR=$DESKTOP_PREFIX/include
 make -j$(nproc) && make install
 ```

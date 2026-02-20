@@ -38,7 +38,7 @@ cd ~/tizen/accessibility-common/build/tizen
 mkdir -p build && cd build
 
 cmake .. \
-  -DENABLE_ATSPI=ON \
+  -DENABLE_ACCESSIBILITY=ON \
   -DBUILD_TESTS=ON \
   -DBUILD_WEB_INSPECTOR_DIRECT=ON \
   -DENABLE_PKG_CONFIGURE=OFF
@@ -108,7 +108,7 @@ Uses live DALi actors — proves the real `ActorAccessible` -> inspector pipelin
 cd ~/tizen/accessibility-common/build/tizen/build
 
 cmake .. \
-  -DENABLE_ATSPI=ON \
+  -DENABLE_ACCESSIBILITY=ON \
   -DBUILD_TESTS=ON \
   -DBUILD_INSPECTOR_LIB=ON \
   -DENABLE_PKG_CONFIGURE=OFF \

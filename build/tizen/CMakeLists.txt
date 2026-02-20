@@ -10,7 +10,7 @@ SET( name "accessibility-common" )
 SET( DALI_ACCESSIBILITY_VERSION 0.1.0 )
 
 # Build options
-OPTION( ENABLE_ATSPI       "Enable AT-SPI accessibility" ON )
+OPTION( ENABLE_ACCESSIBILITY       "Enable accessibility (bridge, service, IPC)" ON )
 OPTION( ENABLE_TIDL        "Use TIDL (rpc_port) instead of D-Bus" OFF )
 OPTION( ENABLE_PKG_CONFIGURE "Use pkgconfig" ON )
 OPTION( ENABLE_EXPORTALL   "Enable Export all symbols" OFF )
@@ -75,7 +75,7 @@ SET( SOURCES
   ${accessibility_common_internal_dir}/bridge/bridge-platform.cpp
 )
 
-IF( ENABLE_ATSPI )
+IF( ENABLE_ACCESSIBILITY )
   SET( SOURCES ${SOURCES} ${accessibility_common_atspi_bridge_src_files} )
   SET( SOURCES ${SOURCES} ${accessibility_common_service_src_files} )
   IF( ENABLE_TIDL )
@@ -100,7 +100,7 @@ IF( ENABLE_ATSPI )
   ENDIF()
 ELSE()
   SET( SOURCES ${SOURCES} ${accessibility_common_atspi_dummy_src_files} )
-  SET( DBUS_BACKEND "none (AT-SPI disabled)" )
+  SET( DBUS_BACKEND "none (accessibility disabled)" )
 ENDIF()
 
 # Include directories -- no external toolkit dependencies
@@ -139,16 +139,16 @@ TARGET_COMPILE_DEFINITIONS( ${name} PRIVATE BUILDING_ACCESSIBILITY_COMMON )
 # Link dependencies -- no external toolkit libraries required
 SET( DALI_ACCESSIBILITY_LDFLAGS "" )
 
-IF( ENABLE_ATSPI AND ENABLE_TIDL AND tidl_available )
+IF( ENABLE_ACCESSIBILITY AND ENABLE_TIDL AND tidl_available )
   SET( DALI_ACCESSIBILITY_LDFLAGS ${DALI_ACCESSIBILITY_LDFLAGS}
     ${RPC_PORT_LDFLAGS}
   )
-ELSEIF( ENABLE_ATSPI AND eldbus_available AND NOT ENABLE_TIDL )
+ELSEIF( ENABLE_ACCESSIBILITY AND eldbus_available AND NOT ENABLE_TIDL )
   SET( DALI_ACCESSIBILITY_LDFLAGS ${DALI_ACCESSIBILITY_LDFLAGS}
     ${ELDBUS_LDFLAGS}
   )
   INCLUDE_DIRECTORIES( ${ELDBUS_INCLUDE_DIRS} )
-ELSEIF( ENABLE_ATSPI AND gdbus_available AND NOT ENABLE_TIDL )
+ELSEIF( ENABLE_ACCESSIBILITY AND gdbus_available AND NOT ENABLE_TIDL )
   SET( DALI_ACCESSIBILITY_LDFLAGS ${DALI_ACCESSIBILITY_LDFLAGS}
     ${GIO_LDFLAGS}
   )
@@ -590,7 +590,7 @@ ENDIF()
 MESSAGE( STATUS "" )
 MESSAGE( STATUS "Configuration:" )
 MESSAGE( STATUS "  Prefix:                   ${PREFIX}" )
-MESSAGE( STATUS "  Enable AT-SPI:            ${ENABLE_ATSPI}" )
+MESSAGE( STATUS "  Enable Accessibility:     ${ENABLE_ACCESSIBILITY}" )
 MESSAGE( STATUS "  Enable TIDL:              ${ENABLE_TIDL}" )
 MESSAGE( STATUS "  IPC backend:              ${DBUS_BACKEND}" )
 MESSAGE( STATUS "  Enable Debug:             ${ENABLE_DEBUG}" )
