@@ -57,6 +57,28 @@ make -j$(nproc)
 ./accessibility-screen-reader-test  # 120 passed
 ```
 
+## GDBus Web Inspector
+
+Interactive browser-based accessibility inspector with real D-Bus IPC round-trip.
+
+**Prerequisites:** `dbus-daemon` and `gio-2.0` (`sudo apt install dbus libglib2.0-dev` on Ubuntu, `brew install dbus glib` on macOS)
+
+```bash
+cd build/tizen && mkdir -p build && cd build
+cmake .. -DENABLE_ACCESSIBILITY=ON -DBUILD_WEB_INSPECTOR_GDBUS=ON
+make accessibility-web-inspector-gdbus -j$(nproc)
+./accessibility-web-inspector-gdbus    # opens on http://localhost:8080
+```
+
+Navigate with the web UI or curl:
+```bash
+curl -s http://localhost:8080/api/tree | python3 -m json.tool
+curl -s -X POST http://localhost:8080/api/navigate \
+  -H 'Content-Type: application/json' -d '{"direction":"next"}'
+```
+
+See [docs/inspector-architecture.md](docs/inspector-architecture.md) for full details.
+
 ## Documentation
 
 See [docs/architecture-overview.md](docs/architecture-overview.md) for full design, phase history, and decision log.

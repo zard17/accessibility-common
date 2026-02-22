@@ -1602,6 +1602,69 @@ struct GDBusWrapper : public DBusWrapper
     return TRUE;
   }
 
+  /**
+   * @brief Splits a D-Bus type signature string into individual complete types.
+   *
+   * The D-Bus abstraction layer stores multi-valued return types (e.g.
+   * ValueOrError<Address, uint8_t>) as a single concatenated signature "(so)y".
+   * This is valid for the EFL/eldbus backend which uses the full signature string,
+   * but GDBus introspection XML requires each <arg> to have a single complete type.
+   * This helper splits "(so)y" into {"(so)", "y"}.
+   */
+  static std::vector<std::string> SplitDBusSignature(const std::string& sig)
+  {
+    std::vector<std::string> types;
+    size_t i = 0;
+    while(i < sig.size())
+    {
+      size_t start = i;
+      switch(sig[i])
+      {
+        case '(':
+        {
+          int depth = 1;
+          ++i;
+          while(i < sig.size() && depth > 0)
+          {
+            if(sig[i] == '(') ++depth;
+            else if(sig[i] == ')') --depth;
+            ++i;
+          }
+          break;
+        }
+        case '{':
+        {
+          int depth = 1;
+          ++i;
+          while(i < sig.size() && depth > 0)
+          {
+            if(sig[i] == '{') ++depth;
+            else if(sig[i] == '}') --depth;
+            ++i;
+          }
+          break;
+        }
+        case 'a':
+        {
+          // Array: 'a' followed by one complete type (recurse to find its end)
+          ++i;
+          auto rest = SplitDBusSignature(sig.substr(i));
+          if(!rest.empty())
+          {
+            i += rest[0].size();
+          }
+          break;
+        }
+        default:
+          // Basic type: single character (y, b, n, q, i, u, x, t, d, s, o, g, h, v)
+          ++i;
+          break;
+      }
+      types.push_back(sig.substr(start, i - start));
+    }
+    return types;
+  }
+
   void add_interface_impl(bool                                fallback,
                           const std::string&                  pathName,
                           const ConnectionPtr&                connection,
@@ -1653,9 +1716,21 @@ struct GDBusWrapper : public DBusWrapper
       {
         xml << "<arg name='" << xmlEscape(arg.second) << "' type='" << arg.first << "' direction='in'/>";
       }
-      for(auto& arg : method.out)
+      // Split concatenated out-arg signatures into individual D-Bus types.
+      // The D-Bus layer stores multi-valued returns (e.g. ValueOrError<Address, uint8_t>)
+      // as a single entry with concatenated signature "(so)y". GDBus requires each
+      // <arg> to have a single complete type, so we split them here.
       {
-        xml << "<arg name='" << xmlEscape(arg.second) << "' type='" << arg.first << "' direction='out'/>";
+        int outIdx = 0;
+        for(auto& arg : method.out)
+        {
+          auto types = SplitDBusSignature(arg.first);
+          for(auto& type : types)
+          {
+            ++outIdx;
+            xml << "<arg name='ret" << outIdx << "' type='" << type << "' direction='out'/>";
+          }
+        }
       }
       xml << "</method>";
       reg->methodsMap[key] = std::move(method);

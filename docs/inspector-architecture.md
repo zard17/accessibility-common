@@ -138,14 +138,87 @@ Same web UI at `http://localhost:8080`. Uses TestAccessible demo tree.
 
 Queries the accessibility tree through **real D-Bus IPC** — a private `dbus-daemon`, `FakeAtspiBroker`, and the GDBus backend. Every tree query goes through full D-Bus serialization/deserialization, proving the end-to-end round-trip.
 
+### Prerequisites
+
+| Dependency | Ubuntu | macOS |
+|------------|--------|-------|
+| `dbus-daemon` | `sudo apt install dbus` (usually pre-installed) | `brew install dbus` |
+| `gio-2.0` (GLib) | `sudo apt install libglib2.0-dev` | `brew install glib` |
+
+Verify: `which dbus-daemon && pkg-config --modversion gio-2.0`
+
+### Build
+
 ```bash
-# Requires dbus-daemon + gio-2.0
+cd build/tizen && mkdir -p build && cd build
+
+# Ubuntu
+cmake .. -DENABLE_ACCESSIBILITY=ON -DBUILD_WEB_INSPECTOR_GDBUS=ON
+
+# macOS (homebrew GLib)
 cmake .. -DENABLE_ACCESSIBILITY=ON -DBUILD_WEB_INSPECTOR_GDBUS=ON -DENABLE_PKG_CONFIGURE=ON
-make -j$(nproc)
-./accessibility-web-inspector-gdbus [port]
+
+make accessibility-web-inspector-gdbus -j$(nproc)
 ```
 
-Same web UI. The difference is under the hood: every API call traverses real D-Bus IPC through `dbus-daemon`.
+### Run
+
+```bash
+./accessibility-web-inspector-gdbus [port]   # default port: 8080
+```
+
+Open `http://localhost:8080` in a browser.
+
+The inspector starts the following pipeline automatically:
+
+1. **Private dbus-daemon** — isolated test bus via `GTestDBus` (no interference with system/session bus)
+2. **FakeAtspiBroker** — minimal AT-SPI services (`org.a11y.Bus`, `org.a11y.Status`, `org.a11y.atspi.Registry`, `org.a11y.atspi.Socket`)
+3. **GDBus bridge** — full bridge initialization with `GDBusWrapper` backend
+4. **Demo tree** — 11-node media player UI (see [Demo Tree](#demo-tree) section above)
+5. **HTTP server** — serves web UI and REST API on the specified port
+
+### REST API
+
+Same endpoints as the standard web inspector:
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/` | GET | Serves the web UI |
+| `/api/tree` | GET | Full tree JSON + current `focusedId` |
+| `/api/element/:id` | GET | Element details (name, role, states, bounds, children, parent) |
+| `/api/navigate` | POST | Navigate: `{"direction": "next\|prev\|child\|parent"}` |
+
+Example:
+```bash
+# Get tree
+curl -s http://localhost:8080/api/tree | python3 -m json.tool
+
+# Navigate forward
+curl -s -X POST http://localhost:8080/api/navigate \
+  -H 'Content-Type: application/json' -d '{"direction":"next"}'
+
+# Navigate backward
+curl -s -X POST http://localhost:8080/api/navigate \
+  -H 'Content-Type: application/json' -d '{"direction":"prev"}'
+```
+
+### Navigation Traversal Order
+
+`GetNeighbor()` walks elements with `HIGHLIGHTABLE` state, skipping non-highlightable containers:
+
+```
+Forward:  Menu → My Tizen App → Play → Volume → Now Playing → Previous → Next → (stops)
+Backward: Next → Previous → Now Playing → Volume → Play → My Tizen App → Menu → (stops)
+```
+
+### How It Differs from Other Inspector Variants
+
+| Aspect | Direct Inspector | Mock Inspector | GDBus Inspector |
+|--------|-----------------|----------------|-----------------|
+| Query path | `Accessible*` C++ methods | MockDBusWrapper (in-process) | Real `dbus-daemon` (IPC) |
+| D-Bus serialization | None | Simulated | Full GVariant round-trip |
+| Requires `dbus-daemon` | No | No | Yes |
+| Tests what | C++ API correctness | Bridge interface registration | End-to-end IPC fidelity |
 
 ---
 

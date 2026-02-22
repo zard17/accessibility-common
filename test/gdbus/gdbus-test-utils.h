@@ -172,19 +172,30 @@ static void SetupTestPlatformCallbacks()
 /**
  * @brief Pumps the GLib main context to process pending async events.
  *
- * Uses non-blocking iterations without early exit, because D-Bus round-trips
- * involve socket I/O between iterations — the next event may not be immediately
- * pending when the previous one finishes. Running all iterations ensures multi-hop
- * async exchanges (broker dispatch → reply delivery) complete fully.
+ * Uses blocking iteration (TRUE) with a 1ms timeout guard so each call yields
+ * to the kernel via poll(), giving the GDBus worker thread time to read socket
+ * replies and queue dispatch sources on the default main context. Without the
+ * blocking flag, on Linux/epoll a tight non-blocking loop starves the worker
+ * thread and async property reads (e.g. IsEnabled) never complete.
+ *
+ * The timeout source prevents g_main_context_iteration(TRUE) from blocking
+ * indefinitely when no D-Bus events remain — without it, the last iterations
+ * would hang forever since PumpMainLoop runs a fixed iteration count (unlike
+ * the while(!complete) pattern in dbus-gdbus.cpp).
  *
  * @param maxIterations Maximum number of iterations to pump.
  */
 static void PumpMainLoop(int maxIterations = 200)
 {
+  // 1ms repeating timeout ensures blocking iteration always returns promptly.
+  auto timeoutId = g_timeout_add(1, [](gpointer) -> gboolean { return G_SOURCE_CONTINUE; }, nullptr);
+
   for(int i = 0; i < maxIterations; ++i)
   {
-    g_main_context_iteration(nullptr, FALSE);
+    g_main_context_iteration(nullptr, TRUE);
   }
+
+  g_source_remove(timeoutId);
 }
 
 // =============================================================================
